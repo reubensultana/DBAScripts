@@ -1,3 +1,6 @@
+USE [master]
+GO
+
 SET NOCOUNT ON;
 
 DECLARE @UserName nvarchar(128) = '%';      -- limit scope to a single login; uses pattern matching privided by the LIKE statement
@@ -41,12 +44,12 @@ SELECT
     ) + N')' AS [permission_name],
   [srvperm].[state_desc],
   CASE 
-    WHEN [srvperm].[permission_name] LIKE 'CONNECT SQL%' THEN '-- USE [master];DROP LOGIN ' + QUOTENAME([srvprin].[name], '[') + ';' 
-    ELSE 'USE [master];REVOKE ' + [srvperm].[permission_name] COLLATE DATABASE_DEFAULT + ' TO ' + QUOTENAME([srvprin].[name], '[') + ';' 
+    WHEN [srvperm].[permission_name] LIKE 'CONNECT SQL%' THEN '-- USE [master];DROP LOGIN ' + QUOTENAME([srvprin].[name] COLLATE DATABASE_DEFAULT, '[') + ';' 
+    ELSE 'USE [master];REVOKE ' + [srvperm].[permission_name] + ' TO ' + QUOTENAME([srvprin].[name], '[') + ';' 
     -- ELSE '--'
   END AS [revoke_command]
 FROM [sys].[server_permissions] srvperm
-    INNER JOIN [sys].[server_principals] srvprin ON [srvperm].[grantee_principal_id] = [srvprin].[principal_id]
+    INNER JOIN [sys].[server_principals] srvprin ON [srvperm].[grantee_principal_id] = [srvprin].[principal_id] 
 WHERE [srvprin].[type] IN ('S', 'U', 'G')
 AND [srvprin].[name] LIKE ISNULL(@UserName, '%')
 AND [srvprin].[name] NOT IN (SELECT [name] FROM @ExcludedAccounts)
@@ -240,17 +243,32 @@ ORDER BY dp.[database_name],
     dp.[permission_name],
     dp.[object_name];
 
--- 3. user accounts
-SELECT DISTINCT
-    dp.[database_name],
-    dp.[database_principal],
-    'USE ' + QUOTENAME(dp.database_name, '[') + ';' + 
-    'DROP USER ' + QUOTENAME(dp.[database_principal], '[') + ';' AS [revoke_command]
-FROM #DatabasePermissions dp
-WHERE dp.[permission_name] = 'GRANT CONNECT'
-AND dp.[database_principal] NOT IN (SELECT [name] FROM @ExcludedAccounts)
-ORDER BY dp.[database_name],
-    dp.[database_principal];
+-- 3. user accounts and schemas
+with cteDatabasePermissions 
+AS (
+    SELECT DISTINCT
+        dp.[database_name],
+        dp.[database_principal],
+        'USE ' + QUOTENAME(dp.database_name, '[') + ';' + 
+        'IF EXISTS(SELECT 1 FROM sys.schemas WHERE [name] = ''' + dp.[database_principal] + ''') DROP SCHEMA ' + QUOTENAME(dp.[database_principal], '[') + ';' AS [revoke_command],
+        0 AS [ordering_column]
+    FROM #DatabasePermissions dp
+    WHERE dp.[permission_name] = 'GRANT CONNECT'
+    AND dp.[database_principal] NOT IN (SELECT [name] FROM @ExcludedAccounts)
+    UNION ALL
+    SELECT DISTINCT
+        dp.[database_name],
+        dp.[database_principal],
+        'USE ' + QUOTENAME(dp.database_name, '[') + ';' + 
+        'DROP USER ' + QUOTENAME(dp.[database_principal], '[') + ';' AS [revoke_command],
+        1 AS [ordering_column]
+    FROM #DatabasePermissions dp
+    WHERE dp.[permission_name] = 'GRANT CONNECT'
+    AND dp.[database_principal] NOT IN (SELECT [name] FROM @ExcludedAccounts)
+)
+SELECT [database_name], [database_principal], [revoke_command]
+FROM cteDatabasePermissions
+ORDER BY [database_name], [database_principal], [ordering_column];
 
 -- 4. role membership
 SELECT 
