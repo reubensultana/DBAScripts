@@ -1,6 +1,6 @@
 USE [master];
 SET NOCOUNT ON;
-DECLARE @FileNumber int = 5; -- ERRORLOG File Number
+DECLARE @FileNumber int = 0; -- ERRORLOG File Number
 CREATE TABLE #logexclusions ([TextWildcard] nvarchar(250));
 /* ********** START: VALUES TO EXCLUDE ********** */
 INSERT INTO #logexclusions
