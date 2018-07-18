@@ -53,6 +53,9 @@ UNION ALL SELECT N'Service Broker manager has started%'
 UNION ALL SELECT N'Service Broker manager has shut down%'
 UNION ALL SELECT N'SQL Server cannot accept new connections, because it is shutting down%'
 UNION ALL SELECT N'The client was unable to reuse a session with SPID%'
+UNION ALL SELECT N'Informational: No full-text supported languages found%'
+UNION ALL SELECT N'Server named pipe provider is ready to accept connection on%'
+UNION ALL SELECT N'The SQL Server Network Interface library successfully registered the%'
 /* ********** END: VALUES TO EXCLUDE ********** */
 DECLARE @SQLcmd nvarchar(max) = N'';
 SELECT @SQLcmd = @SQLcmd + N'AND [Text] NOT LIKE N''' + [TextWildcard] + N''' ' /* <-- [note extra space] */ FROM #logexclusions;
