@@ -35,6 +35,7 @@ AS
 --------------------------------------------------------------------------------------
 --   1.0 |          | 11/05/2012     | Reuben Sultana        | First implementation (based on existing code)
 --   1.1 |          | 10/07/2015     | Reuben Sultana        | Added support for changes in RESTORE FILELISTONLY output
+--   1.2 |          | 25/09/208      | Reuben Sultana        | Fixed bug failing to RESTORE FILELIST for versions > 2014
 --       |          |                |                       | 
 
 --
@@ -64,10 +65,14 @@ BEGIN
     
     DECLARE @SALoginName NVARCHAR(128); -- login name for the 'sa'
     
+    DECLARE @ProductVersion nvarchar(20); -- current product version
+    
     SET @LoggingOnly = 0; -- non-executing mode
     SET @LogDisabled = 1; -- will execute...
     SET @LogEnabled  = 2; -- will execute...
     SET @LogAdvanced = 3; -- will execute...
+    
+    SET @ProductVersion = CONVERT(nvarchar(20), SERVERPROPERTY('ProductVersion'));
     
     -- starting restore
     SET @timestamp = CONVERT(VARCHAR(19), CURRENT_TIMESTAMP, 121);
@@ -182,15 +187,13 @@ BEGIN
         IsPresent bit -- 1 = The file is present in the backup.
     );
 	
-	-- >= 2008
-    IF (CONVERT(nvarchar(20), SERVERPROPERTY('ProductVersion')) LIKE '1[0-2]%')
+    -- >= 2008
+    IF (@ProductVersion LIKE '[1-9][0-9]%')
         ALTER TABLE #BackupFileList ADD TDEThumbprint varbinary(32); -- Shows the thumbprint of the Database Encryption Key.
     
     -- >- 2014 (Azure ONLY)
-    /*
-    IF (CONVERT(nvarchar(20), SERVERPROPERTY('ProductVersion')) LIKE '1[2]%') 
+    IF ((@ProductVersion LIKE '1[2-9]%') OR (@ProductVersion LIKE '[2-9][0-9]%'))
         ALTER TABLE #BackupFileList ADD SnapshotURL nvarchar(360); -- The URL for the Azure snapshot of the database file contained in the FILE_SNAPSHOT backup
-    */
 
     -- get list of database files (BAK) present in the source folder
     SET @timestamp = CONVERT(VARCHAR(19), CURRENT_TIMESTAMP, 121);
