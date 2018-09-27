@@ -15,104 +15,147 @@ SELECT
     CAST(SERVERPROPERTY('IsFullTextInstalled') AS bit) AS [is_fulltextinstalled],
     CAST(SERVERPROPERTY('IsClustered') AS bit) AS [is_clustered],
     CAST(SERVERPROPERTY('BuildClrVersion') AS nvarchar(128)) AS [build_clrversion], 
+    -- NOTE: See "CAST and CONVERT (Transact-SQL)" document at https://docs.microsoft.com/en-us/sql/t-sql/functions/cast-and-convert-transact-sql#xml-styles
     -- sys configurations
-    CAST((
+    CONVERT(xml, (
         SELECT * FROM sys.configurations
         ORDER BY configuration_id ASC
         FOR XML PATH, ROOT('configurations'), ELEMENTS XSINIL
-    ) AS xml),
+    ), 2),
     -- databases
-    CAST((
+    CONVERT(xml, (
         SELECT * FROM sys.databases
         ORDER BY database_id ASC
         FOR XML PATH, ROOT('databases'), ELEMENTS XSINIL
-    ) AS xml),
+    ), 2),
     -- database files
-    CAST((
+    CONVERT(xml, (
         SELECT * FROM sys.master_files
         ORDER BY database_id, file_id
         FOR XML PATH, ROOT('database_files'), ELEMENTS XSINIL
-    ) AS xml),
+    ), 2),
     -- server_principals
-    CAST((
+    CONVERT(xml, (
         SELECT * FROM sys.server_principals
         ORDER BY type ASC, principal_id ASC
         FOR XML PATH, ROOT('server_principals'), ELEMENTS XSINIL
-    ) AS xml),
+    ), 2),
     -- credentials
-    CAST((
+    CONVERT(xml, (
         SELECT * FROM sys.credentials
         ORDER BY credential_id
         FOR XML PATH, ROOT('credentials'), ELEMENTS XSINIL
-    ) AS xml),
+    ), 2),
     -- audits
-    CAST((
+    CONVERT(xml, (
         SELECT * FROM sys.server_audits
         ORDER BY audit_id
         FOR XML PATH, ROOT('audits'), ELEMENTS XSINIL
-    ) AS xml),
+    ), 2),
     -- audit specifications
-    CAST((
+    CONVERT(xml, (
         SELECT * FROM sys.server_audit_specifications
         ORDER BY server_specification_id
         FOR XML PATH, ROOT('audit_specifications'), ELEMENTS XSINIL
-    ) AS xml),
+    ), 2),
     -- audit specification details
-    CAST((
+    CONVERT(xml, (
         SELECT * FROM sys.server_audit_specification_details
         ORDER BY server_specification_id
         FOR XML PATH, ROOT('audit_specification_details'), ELEMENTS XSINIL
-    ) AS xml),
+    ), 2),
     -- mail profiles
-    CAST((
+    CONVERT(xml, (
         SELECT * FROM msdb.dbo.sysmail_profile 
         ORDER BY profile_id ASC
         FOR XML PATH, ROOT('sysmail_profile'), ELEMENTS XSINIL
-    ) AS xml),
+    ), 2),
     -- mail accounts
-    CAST((
+    CONVERT(xml, (
         SELECT * FROM msdb.dbo.sysmail_account 
         ORDER BY account_id ASC
         FOR XML PATH, ROOT('sysmail_account'), ELEMENTS XSINIL
-    ) AS xml),
+    ), 2),
     -- jobs
-    CAST((
+    CONVERT(xml, (
         SELECT * FROM msdb.dbo.sysjobs
         ORDER BY job_id ASC
         FOR XML PATH, ROOT('sysjobs'), ELEMENTS XSINIL
-    ) AS xml),
+    ), 2),
     -- job steps
-    CAST((
+    CONVERT(xml, (
         SELECT * FROM msdb.dbo.sysjobsteps
         ORDER BY job_id ASC, step_id ASC
         FOR XML PATH, ROOT('sysjobsteps'), ELEMENTS XSINIL
-    ) AS xml),
+    ), 2),
     -- operators
-    CAST((
+    CONVERT(xml, (
         SELECT * FROM msdb.dbo.sysoperators
         ORDER BY id ASC
         FOR XML PATH, ROOT('operators'), ELEMENTS XSINIL
-    ) AS xml),
+    ), 2),
     -- alerts
-    CAST((
+    CONVERT(xml, (
         SELECT * FROM msdb.dbo.sysalerts
         ORDER BY id ASC
         FOR XML PATH, ROOT('alerts'), ELEMENTS XSINIL
-    ) AS xml),
+    ), 2),
     -- endpoints
-    CAST((
+    CONVERT(xml, (
         SELECT * FROM sys.endpoints WHERE endpoint_id > 5
         ORDER BY endpoint_id
         FOR XML PATH, ROOT('endpoints'), ELEMENTS XSINIL
-    ) AS xml),
+    ), 2),
     -- linked servers
-    CAST((
+    CONVERT(xml, (
         SELECT * FROM sys.servers WHERE server_id > 0
         ORDER BY server_id
         FOR XML PATH, ROOT('servers'), ELEMENTS XSINIL
-    ) AS xml),
-    
+    ), 2),
+    -- availability_databases_cluster
+    CONVERT(xml, (
+        SELECT * FROM sys.availability_databases_cluster
+        ORDER BY group_id
+        FOR XML PATH, ROOT('availability_databases_cluster'), ELEMENTS XSINIL
+    ), 2),
+    -- availability_group_listener_ip_addresses
+    CONVERT(xml, (
+        SELECT * FROM sys.availability_group_listener_ip_addresses
+        ORDER BY listener_id ASC
+        FOR XML PATH, ROOT('availability_group_listener_ip_addresses'), ELEMENTS XSINIL
+    ), 2),
+    -- availability_group_listeners
+    CONVERT(xml, (
+        SELECT * FROM sys.availability_group_listeners
+        ORDER BY group_id
+        FOR XML PATH, ROOT('availability_group_listeners'), ELEMENTS XSINIL
+    ), 2),
+    -- availability_groups
+    CONVERT(xml, (
+        SELECT * FROM sys.availability_groups
+        ORDER BY group_id ASC
+        FOR XML PATH, ROOT('availability_groups'), ELEMENTS XSINIL
+    ), 2),
+    -- availability_groups_cluster
+    CONVERT(xml, (
+        SELECT * FROM sys.availability_groups_cluster
+        ORDER BY group_id ASC
+        FOR XML PATH, ROOT('availability_groups_cluster'), ELEMENTS XSINIL
+    ), 2),
+    -- availability_read_only_routing_lists
+    CONVERT(xml, (
+        SELECT * FROM sys.availability_read_only_routing_lists
+        ORDER BY replica_id
+        FOR XML PATH, ROOT('availability_read_only_routing_lists'), ELEMENTS XSINIL
+    ), 2),
+    -- availability_replicas
+    CONVERT(xml, (
+        SELECT * FROM sys.availability_replicas
+        ORDER BY replica_id ASC
+        FOR XML PATH, ROOT('availability_replicas'), ELEMENTS XSINIL
+    ), 2),
+
     -- when this audit was run
     CURRENT_TIMESTAMP AS [current_timestamp]
 
-FOR XML PATH('server'), ROOT('serverinfo'), ELEMENTS XSINIL
+FOR XML PATH('server'), ROOT('serverinfo'), ELEMENTS XSINIL;
