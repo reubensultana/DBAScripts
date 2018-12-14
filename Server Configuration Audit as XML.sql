@@ -3,19 +3,61 @@ GO
 
 SET NOCOUNT ON;
 
+DECLARE @SQLVer TABLE (
+	[ID] int,
+    [Name]  nvarchar(128),
+    [Internal_Value] int,
+    [Value] nvarchar(512)
+);
+INSERT INTO @SQLVer EXEC master.dbo.xp_msver;
+
+-- get sql installation folder from registry
+DECLARE @SQLRoot nvarchar(512)
+
+EXEC master.dbo.xp_instance_regread 
+    N'HKEY_LOCAL_MACHINE', N'SOFTWARE\Microsoft\MSSQLServer\Setup', 
+    N'SQLPath', 
+    @SQLRoot OUTPUT;
+
+INSERT INTO @SQLVer(Name, Value) 
+VALUES ('SQLRootDir', ISNULL(@SQLRoot, ''));
+
 SELECT 
-    UPPER(ISNULL(@@SERVERNAME, CAST(SERVERPROPERTY('ServerName') AS nvarchar(128)))) AS [server_name],
+    UPPER(COALESCE(@@SERVERNAME, CAST(SERVERPROPERTY('ServerName') AS nvarchar(128)), '')) AS [server_name],
+    CAST(SERVERPROPERTY('ComputerNamePhysicalNetBIOS') AS nvarchar(128)) AS [host_machinename],
     CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128)) AS [product_version],
     CAST(SERVERPROPERTY('Edition') AS nvarchar(128)) AS [engine_edition],
     CAST(SERVERPROPERTY('Collation') AS nvarchar(128)) AS [collation],
-    CAST(SERVERPROPERTY('ComputerNamePhysicalNetBIOS') AS nvarchar(128)) AS [host_machinename],
+    CONVERT(nvarchar(128), SERVERPROPERTY('SqlCharSetName')) AS SqlCharSetName, 
+    CONVERT(nvarchar(128), SERVERPROPERTY('SqlSortOrderName')) AS SqlSortOrderName,
     CAST(SERVERPROPERTY('InstanceDefaultDataPath') AS nvarchar(128)) AS [default_datapath],
     CAST(SERVERPROPERTY('InstanceDefaultLogPath') AS nvarchar(128)) AS [default_logpath],
     CAST(SERVERPROPERTY('IsIntegratedSecurityOnly') AS bit) AS [is_integratedsecurityonly],
     CAST(SERVERPROPERTY('IsFullTextInstalled') AS bit) AS [is_fulltextinstalled],
     CAST(SERVERPROPERTY('IsClustered') AS bit) AS [is_clustered],
     CAST(SERVERPROPERTY('BuildClrVersion') AS nvarchar(128)) AS [build_clrversion], 
+    CASE CONVERT(int, SERVERPROPERTY('IsIntegratedSecurityOnly'))
+        WHEN 0 THEN 'SQL Server and Windows' 
+        WHEN 1 THEN 'Windows only'
+        ELSE 'Error'
+    END AS [server_authentication], 
+    (SELECT Value FROM @SQLVer WHERE Name = N'SQLRootDir') AS [sql_root_path],
+    (SELECT Value FROM @SQLVer WHERE Name = N'Language') AS [language],
+    (SELECT Value FROM @SQLVer WHERE Name = N'Platform') AS [platform],
+    (SELECT Internal_Value FROM @SQLVer WHERE Name = N'ProcessorCount') AS [logical_processors],
+    (SELECT Value FROM @SQLVer WHERE Name = N'WindowsVersion') AS [os_version],
+    (SELECT Internal_Value FROM @SQLVer WHERE Name = N'PhysicalMemory') AS [total_memory_mb],
+    CONVERT(datetime, SERVERPROPERTY('ResourceLastUpdateDateTime')) AS [resource_last_update_datetime], 
     -- NOTE: See "CAST and CONVERT (Transact-SQL)" document at https://docs.microsoft.com/en-us/sql/t-sql/functions/cast-and-convert-transact-sql#xml-styles
+    -- endpoints
+    CONVERT(xml, (
+        SELECT DISTINCT endpoint_id, local_net_address, local_tcp_port
+        FROM sys.dm_exec_connections 
+        WHERE local_net_address IS NOT NULL
+        AND endpoint_id < 65536
+        ORDER BY local_net_address ASC
+        FOR XML PATH, ROOT('listener_address'), ELEMENTS XSINIL
+    ), 2),
     -- sys configurations
     CONVERT(xml, (
         SELECT * FROM sys.configurations
@@ -102,7 +144,7 @@ SELECT
     ), 2),
     -- endpoints
     CONVERT(xml, (
-        SELECT * FROM sys.endpoints WHERE endpoint_id > 5
+        SELECT * FROM sys.endpoints WHERE endpoint_id >= 65536
         ORDER BY endpoint_id
         FOR XML PATH, ROOT('endpoints'), ELEMENTS XSINIL
     ), 2),
