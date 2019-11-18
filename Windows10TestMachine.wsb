@@ -1,0 +1,13 @@
+<Configuration>
+<VGpu>Disable</VGpu>
+<Networking>Enable</Networking>
+<MappedFolders>
+   <MappedFolder>
+     <HostFolder>C:\TEMP</HostFolder>
+     <ReadOnly>true</ReadOnly>
+   </MappedFolder>
+</MappedFolders>
+<LogonCommand>
+   <Command>explorer.exe C:\users\WDAGUtilityAccount\Desktop\TEMP</Command>
+</LogonCommand>
+</Configuration>
