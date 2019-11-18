@@ -23,6 +23,8 @@ SET @ReplaceExisting = 1;
 SET @RestrictAccess = 1; 
 SET @StatsValue = 15; 
 
+DECLARE @ProductVersion nvarchar(128);
+SET @ProductVersion = CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128));
 
 CREATE TABLE #BackupFileList (
     LogicalName nvarchar(128), -- Logical name of the file.
@@ -44,9 +46,21 @@ CREATE TABLE #BackupFileList (
     DifferentialBaseLSN numeric(25,0) NULL, -- For differential backups, changes with log sequence numbers greater than or equal to DifferentialBaseLSN are included in the differential. For other backup types, the value is NULL. 
     DifferentialBaseGUID uniqueidentifier, -- For differential backups, the unique identifier of the differential base. For other backup types, the value is NULL.
     IsReadOnly bit, -- 1 = The file is read-only.
-    IsPresent bit, -- 1 = The file is present in the backup.
-    TDEThumbprint varbinary(32) -- Shows the thumbprint of the Database Encryption Key
+    IsPresent bit -- 1 = The file is present in the backup.
 );
+
+-- SQL Server 2008 and later versions
+IF (@ProductVersion > '10')
+BEGIN
+    -- Shows the thumbprint of the Database Encryption Key
+    ALTER TABLE #BackupFileList ADD [TDEThumbprint] varbinary(32) NULL;
+END
+-- for SQL Server 2012 and later versions
+IF (@ProductVersion > '11')
+BEGIN
+    -- The URL for the Azure snapshot of the database file contained in the FILE_SNAPSHOT backup
+    ALTER TABLE #BackupFileList ADD [SnapshotURL] nvarchar(360) NULL;
+END
 
 
 -- retrieve data from backup file
