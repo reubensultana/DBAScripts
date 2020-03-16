@@ -2,11 +2,131 @@
 # Using Powershell - administrator mode:
 Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
 # --------------------------------------------------
+
+# --- Uninstall unecessary applications that come with Windows out of the box ---
+# 3D Builder
+Get-AppxPackage Microsoft.3DBuilder | Remove-AppxPackage | Out-Null
+# Autodesk
+Get-AppxPackage *Autodesk* | Remove-AppxPackage | Out-Null
+# Bing Weather, News, Sports, and Finance (Money):
+Get-AppxPackage Microsoft.BingFinance | Remove-AppxPackage | Out-Null
+Get-AppxPackage Microsoft.BingNews | Remove-AppxPackage | Out-Null
+Get-AppxPackage Microsoft.BingSports | Remove-AppxPackage | Out-Null
+Get-AppxPackage Microsoft.BingWeather | Remove-AppxPackage | Out-Null
+# BubbleWitch
+Get-AppxPackage *BubbleWitch* | Remove-AppxPackage | Out-Null
+# Candy Crush
+Get-AppxPackage king.com.CandyCrush* | Remove-AppxPackage | Out-Null
+# Comms Phone
+Get-AppxPackage Microsoft.CommsPhone | Remove-AppxPackage | Out-Null
+# Dropbox
+Get-AppxPackage *Dropbox* | Remove-AppxPackage | Out-Null
+# Facebook
+Get-AppxPackage *Facebook* | Remove-AppxPackage | Out-Null
+# Keeper
+Get-AppxPackage *Keeper* | Remove-AppxPackage | Out-Null
+# March of Empires
+Get-AppxPackage *MarchofEmpires* | Remove-AppxPackage | Out-Null
+# Minecraft
+Get-AppxPackage *Minecraft* | Remove-AppxPackage | Out-Null
+# Netflix
+Get-AppxPackage *Netflix* | Remove-AppxPackage | Out-Null
+# Office Hub
+Get-AppxPackage Microsoft.MicrosoftOfficeHub | Remove-AppxPackage | Out-Null
+# One Connect
+Get-AppxPackage Microsoft.OneConnect | Remove-AppxPackage | Out-Null
+# OneNote
+Get-AppxPackage Microsoft.Office.OneNote | Remove-AppxPackage | Out-Null
+# Plex
+Get-AppxPackage *Plex* | Remove-AppxPackage | Out-Null
+# Skype (Metro version)
+Get-AppxPackage Microsoft.SkypeApp | Remove-AppxPackage | Out-Null
+# Solitaire
+Get-AppxPackage *Solitaire* | Remove-AppxPackage | Out-Null
+# Sway
+Get-AppxPackage Microsoft.Office.Sway | Remove-AppxPackage | Out-Null
+# Twitter
+Get-AppxPackage *Twitter* | Remove-AppxPackage | Out-Null
+# Xbox
+Get-AppxPackage Microsoft.XboxApp | Remove-AppxPackage | Out-Null
+Get-AppxPackage Microsoft.XboxIdentityProvider | Remove-AppxPackage | Out-Null
+# Zune Music, Movies & TV
+Get-AppxPackage Microsoft.ZuneMusic | Remove-AppxPackage | Out-Null
+Get-AppxPackage Microsoft.ZuneVideo | Remove-AppxPackage | Out-Null
+
+# --- Other ---
+# Alarms
+Get-AppxPackage Microsoft.WindowsAlarms | Remove-AppxPackage | Out-Null
+# Feedback Hub
+Get-AppxPackage Microsoft.WindowsFeedbackHub | Remove-AppxPackage | Out-Null
+# Get Started
+Get-AppxPackage Microsoft.Getstarted | Remove-AppxPackage | Out-Null
+# Mail & Calendar
+Get-AppxPackage microsoft.windowscommunicationsapps | Remove-AppxPackage | Out-Null
+# Maps
+Get-AppxPackage Microsoft.WindowsMaps | Remove-AppxPackage | Out-Null
+# Messaging
+Get-AppxPackage Microsoft.Messaging | Remove-AppxPackage | Out-Null
+# People
+Get-AppxPackage Microsoft.People | Remove-AppxPackage | Out-Null
+# Phone
+Get-AppxPackage Microsoft.WindowsPhone | Remove-AppxPackage | Out-Null
+# Photos
+Get-AppxPackage Microsoft.Windows.Photos | Remove-AppxPackage | Out-Null
+# Sound Recorder
+Get-AppxPackage Microsoft.WindowsSoundRecorder | Remove-AppxPackage | Out-Null
+# Sticky Notes
+Get-AppxPackage Microsoft.MicrosoftStickyNotes | Remove-AppxPackage | Out-Null
+
+# --- Windows Settings ---
+# Privacy: Let apps use my advertising ID: Disable
+If (-Not (Test-Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo")) {
+    New-Item -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo | Out-Null
+}
+Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo -Name Enabled -Type DWord -Value 0 | Out-Null
+# Start Menu: Disable Bing Search Results
+Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search -Name BingSearchEnabled -Type DWord -Value 0 | Out-Null
+# To Restore (Enabled):
+# Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search -Name BingSearchEnabled -Type DWord -Value 1 | Out-Null
+
+# Disable Telemetry (requires a reboot to take effect)
+# Note this may break Insider builds for your organization
+# Set-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection -Name AllowTelemetry -Type DWord -Value 0 | Out-Null
+# Get-Service DiagTrack,Dmwappushservice | Stop-Service | Set-Service -StartupType Disabled | Out-Null
+
+# Change Explorer home screen back to "This PC"
+Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced -Name LaunchTo -Type DWord -Value 1 | Out-Null
+# Change it back to "Quick Access" (Windows 10 default)
+# Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced -Name LaunchTo -Type DWord -Value 2 | Out-Null
+
+# These make "Quick Access" behave much closer to the old "Favorites"
+# Disable Quick Access: Recent Files
+Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer -Name ShowRecent -Type DWord -Value 0 | Out-Null
+# Disable Quick Access: Frequent Folders
+Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer -Name ShowFrequent -Type DWord -Value 0 | Out-Null
+# To Restore:
+# Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer -Name ShowRecent -Type DWord -Value 1 | Out-Null
+# Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer -Name ShowFrequent -Type DWord -Value 1 | Out-Null
+
+# Disable Xbox Gamebar
+Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" -Name AppCaptureEnabled -Type DWord -Value 0 | Out-Null
+Set-ItemProperty -Path "HKCU:\System\GameConfigStore" -Name GameDVR_Enabled -Type DWord -Value 0 | Out-Null
+
+# Turn off People in Taskbar
+If (-Not (Test-Path "HKCU:SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People")) {
+    New-Item -Path HKCU:SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People | Out-Null
+}
+Set-ItemProperty -Path "HKCU:SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People" -Name PeopleBand -Type DWord -Value 0 | Out-Null
+
+
 # https://chocolatey.org/
 # base
 choco install chocolatey -y
+#--- Windows Subsystems/Features ---
+choco install Microsoft-Hyper-V-All -source windowsFeatures
+choco install Microsoft-Windows-Subsystem-Linux -source windowsfeatures
 # security
-choco install malwarebytes -y
+# choco install malwarebytes -y
 choco install keepass -y
 # basics
 choco install javaruntime -y
