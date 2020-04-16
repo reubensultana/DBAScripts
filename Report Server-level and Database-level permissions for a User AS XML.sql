@@ -4,12 +4,15 @@ SET NOCOUNT ON;
 DECLARE @UserName nvarchar(128) = '%';      -- limit scope to a single login; uses pattern matching privided by the LIKE statement
 DECLARE @DatabaseName nvarchar(128) = NULL; -- limit scope to a single database
 DECLARE @ExcludeSystemDatabases bit = 0;    -- if value is "1" exclude system databases
+DECLARE @SALogin nvarchar(128) = N'';
+
+SET @SALogin = (SELECT name FROM sys.server_principals WHERE sid = 0x01);
 
 -- accounts that will be excluded from the queries and results
 DECLARE @ExcludedAccounts TABLE ([name] nvarchar(128));
 INSERT INTO @ExcludedAccounts 
 VALUES 
-    ('dbo'), ('sa'), ('guest'), ('NT AUTHORITY\SYSTEM'), ('NT SERVICE\MSSQLSERVER'), ('NT SERVICE\SQLSERVERAGENT'),
+    ('dbo'), (@SALogin), ('guest'), ('NT AUTHORITY\SYSTEM'), ('NT SERVICE\MSSQLSERVER'), ('NT SERVICE\SQLSERVERAGENT'),
     ('##MS_PolicyEventProcessingLogin##'), ('##MS_PolicyTsqlExecutionLogin##'), ('##MS_AgentSigningCertificate##'),
     ('##MS_SSISServerCleanupJobLogin##'), ('##MS_SSISServerCleanupJobUser##'), ('MS_DataCollectorInternalUser'), 
     ('AllSchemaOwner'), ('ModuleSigner'),
@@ -358,7 +361,7 @@ SELECT
     sj.[name] AS [job_name],
     sj.[enabled] AS [is_enabled],
     sp.[name] AS [owner_name],
-    'EXEC msdb.dbo.sp_update_job @job_id=N''' + CAST(sj.[job_id] AS nvarchar(128)) + ''', @owner_login_name=N''sa'';' AS [change_ownership_command]
+    'EXEC msdb.dbo.sp_update_job @job_id=N''' + CAST(sj.[job_id] AS nvarchar(128)) + ''', @owner_login_name=N''' + @SALogin + ''';' AS [change_ownership_command]
 INTO #x_SQLAgentJobOwnership
 FROM msdb.dbo.sysjobs sj
     INNER JOIN sys.server_principals sp ON sj.[owner_sid] = sp.[sid]
@@ -370,7 +373,7 @@ ORDER BY [owner_name], [job_name];
 SELECT 
     d.[name] AS [database_name],
     sp.[name] AS [owner_name],
-    'ALTER AUTHORIZATION ON DATABASE::' + QUOTENAME(d.[name], '[') + ' TO [sa];' AS [change_ownership_command]
+    'ALTER AUTHORIZATION ON DATABASE::' + QUOTENAME(d.[name], '[') + ' TO [' + @SALogin + '];' AS [change_ownership_command]
 INTO #x_DatabaseOwnership
 FROM sys.databases d
     INNER JOIN sys.server_principals sp ON d.[owner_sid] = sp.[sid]
