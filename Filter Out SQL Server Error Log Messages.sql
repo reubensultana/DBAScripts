@@ -72,7 +72,7 @@ SELECT @SQLcmd = @SQLcmd + N'AND [Text] NOT LIKE N''' + [TextWildcard] + N''' ' 
 --PRINT @SQLcmd;
 CREATE TABLE #readerrorlog ( [LogDate] datetime, [ProcessInfo] varchar(10), [Text] nvarchar(4000) );
 INSERT INTO #readerrorlog EXEC sp_readerrorlog @FileNumber;
-SET @SQLcmd = N'SELECT [LogDate], [Text] FROM #readerrorlog WHERE 1=1 ' + @SQLcmd + N'ORDER BY [LogDate] ASC;';
+SET @SQLcmd = N'SELECT [LogDate], [Text] FROM #readerrorlog WHERE 1=1 AND LTRIM(RTRIM([Text])) != '''' ' + @SQLcmd + N'ORDER BY [LogDate] ASC;';
 --PRINT @SQLcmd;
 EXEC sp_executesql @SQLcmd;
 DROP TABLE #logexclusions;
