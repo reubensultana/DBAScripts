@@ -104,6 +104,11 @@ SET @DatabaseList = CURSOR READ_ONLY FOR
     WHERE state = 0
     AND database_id > (CASE WHEN @ExcludeSystemDatabases = 0 THEN 0 ELSE 4 END)
     AND database_id = (CASE WHEN NULLIF(@DatabaseName, '') IS NOT NULL THEN DB_ID(@DatabaseName) ELSE database_id END)
+    -- exclude LOCAL databases in that are in SECONDARY role of an AG
+    AND [database_id] NOT IN (
+        SELECT [database_id] FROM sys.dm_hadr_database_replica_states
+        WHERE [is_local]=1 AND [is_primary_replica]=0
+    )
 OPEN @DatabaseList
 FETCH NEXT FROM @DatabaseList INTO @DatabaseName
 WHILE (@@FETCH_STATUS = 0)
