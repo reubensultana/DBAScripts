@@ -109,6 +109,13 @@ SET @DatabaseList = CURSOR READ_ONLY FOR
         SELECT [database_id] FROM sys.dm_hadr_database_replica_states
         WHERE [is_local]=1 AND [is_primary_replica]=0
     )
+    -- exclude LOCAL databases in that are in SECONDARY role of Database Mirroring Configuration
+    AND [database_id] NOT IN (
+        SELECT sd.[database_id]
+        FROM sys.databases sd
+            INNER JOIN sys.database_mirroring dm ON sd.[database_id] = dm.[database_id]
+        WHERE dm.[mirroring_guid] IS NOT NULL AND dm.[mirroring_role] = 1
+    )
 OPEN @DatabaseList
 FETCH NEXT FROM @DatabaseList INTO @DatabaseName
 WHILE (@@FETCH_STATUS = 0)
