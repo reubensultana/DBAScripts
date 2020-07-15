@@ -131,11 +131,13 @@ SELECT
     ISNULL(QUOTENAME([sch].[name], ''['') + ''.'' + QUOTENAME([obj].[name], ''[''), ''N/A'') [object_name],
     ISNULL([obj].[type_desc], ''N/A'') [object_type]
 FROM [sys].[database_permissions] [sec]
-    INNER JOIN [sys].[database_principals] [prin] ON [sec].[grantee_principal_id] = [prin].[principal_id]
+    INNER JOIN [sys].[database_principals] [prin]
+        INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [prin].[sid]
+    ON [sec].[grantee_principal_id] = [prin].[principal_id]
     LEFT OUTER JOIN [sys].[objects] [obj] 
         INNER JOIN [sys].[schemas] [sch] ON [sch].[schema_id] = [obj].[schema_id]
     ON [obj].[object_id] = [sec].[major_id]
-WHERE [prin].[name] LIKE ''' + ISNULL(@UserName, '%') + '''
+WHERE [sp].[name] LIKE ''' + ISNULL(@UserName, '%') + '''
 AND [sec].[class] IN (0, 1)
 ORDER BY [object_name], [object_type], [database_principal], [permission_name];
 ';
@@ -159,9 +161,11 @@ BEGIN
         [u].[name] [member_name],
         [g].[name] [database_role]
     FROM [sys].[database_role_members] [m]
-        INNER JOIN [sys].[database_principals] [u] ON [u].[principal_id] = [m].[member_principal_id]
+        INNER JOIN [sys].[database_principals] [u] 
+            INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [u].[sid]
+        ON [u].[principal_id] = [m].[member_principal_id]
         INNER JOIN [sys].[database_principals] [g] ON [g].[principal_id] = [m].[role_principal_id]
-    WHERE [u].[name] LIKE ''' + ISNULL(@UserName, '%') + '''
+    WHERE [sp].[name] LIKE ''' + ISNULL(@UserName, '%') + '''
     ORDER BY [member_name], [database_role];
 END
 ';
@@ -174,18 +178,22 @@ USE ' + QUOTENAME(@DatabaseName, '[') + ';
 IF EXISTS(
     SELECT 1
     FROM [sys].[database_role_members] [m]
-        INNER JOIN [sys].[database_principals] [u] ON [u].[principal_id] = [m].[member_principal_id]
+        INNER JOIN [sys].[database_principals] [u] 
+            INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [u].[sid]
+        ON [u].[principal_id] = [m].[member_principal_id]
         INNER JOIN [sys].[database_principals] [g] ON [g].[principal_id] = [m].[role_principal_id]
-    WHERE [u].[name] LIKE ''' + ISNULL(@UserName, '%') + '''
+    WHERE [sp].[name] LIKE ''' + ISNULL(@UserName, '%') + '''
     )
 BEGIN
     WITH cteRoles AS (
         SELECT 
             [g].[name] [database_role]
         FROM [sys].[database_role_members] [m]
-            INNER JOIN [sys].[database_principals] [u] ON [u].[principal_id] = [m].[member_principal_id]
+            INNER JOIN [sys].[database_principals] [u] 
+                INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [u].[sid]
+            ON [u].[principal_id] = [m].[member_principal_id]
             INNER JOIN [sys].[database_principals] [g] ON [g].[principal_id] = [m].[role_principal_id]
-        WHERE [u].[name] LIKE ''' + ISNULL(@UserName, '%') + '''
+        WHERE [sp].[name] LIKE ''' + ISNULL(@UserName, '%') + '''
     )
     SELECT 
         DB_NAME() AS [database_name],
@@ -194,7 +202,9 @@ BEGIN
         ISNULL(QUOTENAME([sch].[name], ''['') + ''.'' + QUOTENAME([obj].[name], ''[''), ''N/A'') [object_name],
         ISNULL([obj].[type_desc], ''N/A'') [object_type]
     FROM [sys].[database_permissions] [sec]
-        INNER JOIN [sys].[database_principals] [prin] ON [sec].[grantee_principal_id] = [prin].[principal_id]
+        INNER JOIN [sys].[database_principals] [prin] 
+            INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [prin].[sid]
+        ON [sec].[grantee_principal_id] = [prin].[principal_id]
         LEFT OUTER JOIN [sys].[objects] [obj] 
             INNER JOIN [sys].[schemas] [sch] ON [sch].[schema_id] = [obj].[schema_id]
         ON [obj].[object_id] = [sec].[major_id]
@@ -347,8 +357,10 @@ SELECT
         CAST(eop.[permission_type] AS varchar(10)) + '';'' AS [revoke_command]
 
 FROM [catalog].[explicit_object_permissions] eop
-    INNER JOIN sys.database_principals dp ON eop.[principal_id] = dp.principal_id
-AND dp.[name] LIKE ''' + ISNULL(@UserName, '%') + '''';
+    INNER JOIN sys.database_principals dp 
+        INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [dp].[sid]
+    ON eop.[principal_id] = dp.principal_id
+AND sp.[name] LIKE ''' + ISNULL(@UserName, '%') + '''';
 
     EXEC sp_executesql @SQLcmd;
 END
