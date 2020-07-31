@@ -1,3 +1,4 @@
+-- Source: https://github.com/reubensultana/DBAScripts/blob/master/FragmentationInfo.sql
 
 -- variables
 declare @dbid int;
@@ -28,30 +29,33 @@ declare @DatabaseName sysname,          -- Name of the database containing the a
                                         -- NULL for heaps when mode = SAMPLED.
         @AllowPageLocks bit,            -- 1 = Index allows row locks; 0 = Index does not allow row locks.
         @AllowRowLocks bit,             -- 1 = Index allows page locks; 0 = Index does not allow page locks.
-		@StatsName sysname;             -- name of the statistics object for an index
+        @StatsName sysname;             -- name of the statistics object for an index
 
 SET @dbid = DB_ID(DB_NAME())
 
 CREATE TABLE #FragmentationInfo (
-    DatabaseID          smallint,
-	DatabaseName        sysname,
-    SchemaName          sysname,
-    ObjectID            int,
-    TableName           sysname,
-    IndexID             int,
-    IndexName           sysname,
-    IndexType           nvarchar(60),
-    PercentFragmentation numeric(5,2),
-    AllowPageLocks      bit NULL,
-    AllowRowLocks       bit NULL,
-	StatsName           sysname NULL
+    [DatabaseID]            smallint,
+	[DatabaseName]          nvarchar(128),
+    [SchemaName]            nvarchar(128),
+    [ObjectID]              int,
+    [TableName]             nvarchar(128),
+    [IndexID]               int,
+    [IndexName]             nvarchar(128),
+    [IndexType]             nvarchar(60),
+    [PercentFragmentation]  numeric(5,2),
+    [PageCount]             bigint,
+    [RecordCount]           bigint,
+    [AllowPageLocks]        bit NULL,
+    [AllowRowLocks]         bit NULL,
+	[StatsName]             nvarchar(128) NULL
 );
 
 -- get fragmentation info
+-- also see https://docs.microsoft.com/en-us/sql/relational-databases/system-dynamic-management-views/sys-dm-db-index-physical-stats-transact-sql
 INSERT INTO #FragmentationInfo
     SELECT 
         d.database_id,          -- DatabaseID
-		QUOTENAME(d.name, '['), -- DatabaseName
+        QUOTENAME(d.name, '['), -- DatabaseName
         '',                     -- SchemaName
         s.object_id,            -- ObjectID
         '',                     -- TableName
@@ -59,9 +63,11 @@ INSERT INTO #FragmentationInfo
         '',                     -- IndexName
         '',                     -- IndexType
         s.avg_fragmentation_in_percent, -- PercentFragmentation
+        s.page_count,           -- PageCount
+        NULL,                   -- RecordCount
         NULL,                   -- AllowPageLocks
         NULL,                   -- AllowRowLocks
-		NULL                    -- StatsName
+        NULL                    -- StatsName
     FROM sys.dm_db_index_physical_stats(@dbid, NULL, NULL, NULL, 'LIMITED') s
         INNER JOIN sys.databases d ON s.database_id = d.database_id
     WHERE d.database_id > 4 -- exclude master, tempdb, model, msdb
@@ -93,32 +99,34 @@ BEGIN
     SET @SQLcmd = N'';
     SET @SQLcmd = N'USE ' + @DatabaseName + N'; ';
     -- get index names and exclude disabled clustered index
-	-- v4.6 fix - 24/09/2012
-	-- If SCHEMA_NAME or OBJECT_NAME functions or Index Name are NULL save an empty string
+    -- v4.6 fix - 24/09/2012
+    -- If SCHEMA_NAME or OBJECT_NAME functions or Index Name are NULL save an empty string
     SET @SQLcmd = @SQLcmd + N'
 UPDATE f
 SET SchemaName = ISNULL(QUOTENAME(SCHEMA_NAME(o.schema_id), ''[''), ''''),
     TableName =  ISNULL(QUOTENAME(OBJECT_NAME(f.objectid), ''[''), ''''),
     IndexName =  ISNULL(QUOTENAME(i.[name], ''[''), ''''),
     IndexType =  i.type_desc,
+    RecordCount = p.rows,
     AllowPageLocks = i.allow_page_locks,
     AllowRowLocks = i.allow_row_locks,
-	StatsName = QUOTENAME(s.[name], ''['')
+    StatsName = QUOTENAME(s.[name], ''['')
 FROM #FragmentationInfo f
     INNER JOIN ' + @DatabaseName + N'.sys.objects o ON o.object_id = f.ObjectID
     INNER JOIN ' + @DatabaseName + N'.sys.indexes i ON i.object_id = f.ObjectID AND i.index_id = f.IndexID
 	LEFT OUTER JOIN ' + @DatabaseName + N'.sys.stats s ON s.object_id = i.object_id AND s.name = i.name
+    LEFT OUTER JOIN ' + @DatabaseName + N'.sys.partitions p ON p.object_id = f.ObjectID AND p.index_id = f.IndexID
 WHERE f.DatabaseName = ''' + @DatabaseName + '''
 AND i.is_disabled = 0
 AND i.type_desc IN (''CLUSTERED'', ''NONCLUSTERED'');';
 
-    EXEC(@SQLcmd);
+    EXEC sp_executesql @SQLcmd;
 
     FETCH NEXT FROM @DatabaseNames INTO @DatabaseName
 END
 CLOSE @DatabaseNames
 DEALLOCATE @DatabaseNames
 
-SELECT * FROM #FragmentationInfo ORDER BY IndexID ASC;
+SELECT * FROM #FragmentationInfo ORDER BY [SchemaName], [TableName], [IndexID] ASC;
 
 DROP TABLE #FragmentationInfo;
