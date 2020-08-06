@@ -3,7 +3,7 @@ GO
 
 SET NOCOUNT ON;
 
-DECLARE @UserName nvarchar(128) = '%';      -- limit scope to a single login; uses pattern matching privided by the LIKE statement
+DECLARE @UserName nvarchar(128) = 'INTL\g-UK-Sharetrack-Prod_R';      -- limit scope to a single login; uses pattern matching privided by the LIKE statement
 DECLARE @DatabaseName nvarchar(128) = NULL; -- limit scope to a single database
 DECLARE @ExcludeSystemDatabases bit = 0;    -- if value is "1" exclude system databases
 DECLARE @SALogin nvarchar(128) = N'';
@@ -107,14 +107,15 @@ SET @DatabaseList = CURSOR READ_ONLY FOR
     -- exclude LOCAL databases in that are in SECONDARY role of an AG
     AND [database_id] NOT IN (
         SELECT [database_id] FROM sys.dm_hadr_database_replica_states
-        WHERE [is_local]=1 AND [is_primary_replica]=0
+        WHERE [is_local]=1 
+        AND [is_primary_replica]=0 -- SQL Server 2014 (12.x) and later.
     )
     -- exclude LOCAL databases in that are in SECONDARY role of Database Mirroring Configuration
     AND [database_id] NOT IN (
         SELECT sd.[database_id]
         FROM sys.databases sd
             INNER JOIN sys.database_mirroring dm ON sd.[database_id] = dm.[database_id]
-        WHERE dm.[mirroring_guid] IS NOT NULL AND dm.[mirroring_role] = 1
+        WHERE dm.[mirroring_guid] IS NOT NULL AND dm.[mirroring_role] <> 1
     )
 OPEN @DatabaseList
 FETCH NEXT FROM @DatabaseList INTO @DatabaseName
