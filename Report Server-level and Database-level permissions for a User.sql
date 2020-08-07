@@ -3,7 +3,7 @@ GO
 
 SET NOCOUNT ON;
 
-DECLARE @UserName nvarchar(128) = 'INTL\g-UK-Sharetrack-Prod_R';      -- limit scope to a single login; uses pattern matching privided by the LIKE statement
+DECLARE @UserName nvarchar(128) = '%';      -- limit scope to a single login; uses pattern matching privided by the LIKE statement
 DECLARE @DatabaseName nvarchar(128) = NULL; -- limit scope to a single database
 DECLARE @ExcludeSystemDatabases bit = 0;    -- if value is "1" exclude system databases
 DECLARE @SALogin nvarchar(128) = N'';
