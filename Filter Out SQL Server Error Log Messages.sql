@@ -22,6 +22,7 @@ UNION ALL SELECT N'Common language runtime%'
 UNION ALL SELECT N'Configuration option % Run the RECONFIGURE statement to install%'
 UNION ALL SELECT N'Database backed up%'
 UNION ALL SELECT N'Database differential changes were backed up%'
+UNION ALL SELECT N'Database Mirroring Login succeeded for user%'
 UNION ALL SELECT N'Database was restored: Database:%'
 UNION ALL SELECT N'DBCC CHECKDB%'
 UNION ALL SELECT N'Dedicated admin connection support was established%'
@@ -72,12 +73,20 @@ UNION ALL SELECT N'Using locked pages in the memory manager%'
 UNION ALL SELECT N'UTC adjustment%';
 /* ********** END: VALUES TO EXCLUDE ********** */
 DECLARE @SQLcmd nvarchar(max) = N'';
-SELECT @SQLcmd = @SQLcmd + N'AND [Text] NOT LIKE N''' + [TextWildcard] + N''' ' /* <-- [note extra space] */ FROM #logexclusions;
+DECLARE @LogExclusions nvarchar(max) = N'';
+SELECT @LogExclusions = @LogExclusions + N'AND [Text] NOT LIKE N''' + [TextWildcard] + N''' ' /* <-- [note extra space] */ FROM #logexclusions;
 --PRINT @SQLcmd;
 CREATE TABLE #readerrorlog ( [LogID] int IDENTITY(1,1), [LogDate] datetime, [ProcessInfo] varchar(10), [Text] nvarchar(4000) );
 INSERT INTO #readerrorlog EXEC sp_readerrorlog @FileNumber;
-SET @SQLcmd = N'SELECT [LogDate], [Text] FROM #readerrorlog WHERE 1=1 AND LTRIM(RTRIM([Text])) != '''' ' + @SQLcmd + N'ORDER BY [LogID] ASC;';
+-- build dynamic SQL for detail
+SET @SQLcmd = N'SELECT [LogDate], [Text] FROM #readerrorlog WHERE 1=1 AND LTRIM(RTRIM([Text])) != '''' ' + @LogExclusions + N'ORDER BY [LogID] ASC;';
 --PRINT @SQLcmd;
 EXEC sp_executesql @SQLcmd;
+PRINT '------------------------------------------------------------------------'
+-- build dynamic SQL for unique message stats
+SET @SQLcmd = N'SELECT DISTINCT MIN([LogDate]) AS [FirstInstance], MAX([LogDate]) AS [LastInstance], COUNT(*) AS [ItemCount], [Text] FROM #readerrorlog WHERE 1=1 AND LTRIM(RTRIM([Text])) != '''' ' + @LogExclusions + N' GROUP BY [Text] ORDER BY [FirstInstance] ASC, [LastInstance] ASC;';
+--PRINT @SQLcmd;
+EXEC sp_executesql @SQLcmd;
+
 DROP TABLE #logexclusions;
 DROP TABLE #readerrorlog;
