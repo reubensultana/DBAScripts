@@ -54,7 +54,7 @@ SELECT
 FROM [sys].[server_permissions] srvperm
     INNER JOIN [sys].[server_principals] srvprin ON [srvperm].[grantee_principal_id] = [srvprin].[principal_id] 
 WHERE [srvprin].[type] IN ('S', 'U', 'G')
-AND [srvprin].[name] LIKE ISNULL(@UserName, '%')
+AND [srvprin].[name] LIKE COALESCE(@UserName, '%')
 AND [srvprin].[name] NOT IN (SELECT [name] FROM @ExcludedAccounts)
 ORDER BY [server_principal], srvperm.class, [permission_name];
 
@@ -69,7 +69,7 @@ SELECT
 FROM [sys].[server_role_members] [rm]
     INNER JOIN [sys].[server_principals] [lgn] ON [rm].[member_principal_id] = [lgn].[principal_id]
 WHERE [rm].[role_principal_id] BETWEEN 3 AND 10
-AND [lgn].[name] LIKE ISNULL(@UserName, '%')
+AND [lgn].[name] LIKE COALESCE(@UserName, '%')
 AND [lgn].[name] NOT IN (SELECT [name] FROM @ExcludedAccounts)
 ORDER BY [member_name], [server_role];
 
@@ -129,8 +129,8 @@ SELECT
     DB_NAME() AS [database_name],
     [prin].[name] [database_principal], 
     [sec].[state_desc] + '' '' + [sec].[permission_name] [permission_name],
-    ISNULL(QUOTENAME([sch].[name], ''['') + ''.'' + QUOTENAME([obj].[name], ''[''), ''N/A'') [object_name],
-    ISNULL([obj].[type_desc], ''N/A'') [object_type]
+    COALESCE(QUOTENAME([sch].[name], ''['') + ''.'' + QUOTENAME([obj].[name], ''[''), ''N/A'') [object_name],
+    COALESCE([obj].[type_desc], ''N/A'') [object_type]
 FROM [sys].[database_permissions] [sec]
     INNER JOIN [sys].[database_principals] [prin]
         INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [prin].[sid]
@@ -138,7 +138,7 @@ FROM [sys].[database_permissions] [sec]
     LEFT OUTER JOIN [sys].[objects] [obj] 
         INNER JOIN [sys].[schemas] [sch] ON [sch].[schema_id] = [obj].[schema_id]
     ON [obj].[object_id] = [sec].[major_id]
-WHERE [sp].[name] LIKE ''' + ISNULL(@UserName, '%') + '''
+WHERE [sp].[name] LIKE ''' + COALESCE(@UserName, '%') + '''
 AND [sec].[class] IN (0, 1)
 ORDER BY [object_name], [object_type], [database_principal], [permission_name];
 ';
@@ -154,19 +154,35 @@ IF EXISTS(
     FROM [sys].[database_role_members] [m]
         INNER JOIN [sys].[database_principals] [u] ON [u].[principal_id] = [m].[member_principal_id]
         INNER JOIN [sys].[database_principals] [g] ON [g].[principal_id] = [m].[role_principal_id]
-    WHERE [u].[name] LIKE ''' + ISNULL(@UserName, '%') + '''
+    WHERE [u].[name] LIKE ''' + COALESCE(@UserName, '%') + '''
     )
 BEGIN
+    WITH cteRoles ( [member_name], [database_role] )
+    AS (
+        -- get anchor member
+        SELECT 
+            [u].[name] [member_name],
+            [g].[name] [database_role]
+        FROM [sys].[database_role_members] [m]
+            INNER JOIN [sys].[database_principals] [u] ON [u].[principal_id] = [m].[member_principal_id]
+            INNER JOIN [sys].[database_principals] [g] ON [g].[principal_id] = [m].[role_principal_id]
+            INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [u].[sid]
+        WHERE [sp].[name] LIKE ''' + COALESCE(@UserName, '%') + '''
+
+        UNION ALL
+        -- get nested roles
+        SELECT 
+            [u].[name],
+            [g].[name]
+        FROM [sys].[database_role_members] [m]
+            INNER JOIN [sys].[database_principals] [u] ON [u].[principal_id] = [m].[member_principal_id]
+            INNER JOIN [sys].[database_principals] [g] ON [g].[principal_id] = [m].[role_principal_id]
+    )
     SELECT 
         DB_NAME() AS [database_name],
-        [u].[name] [member_name],
-        [g].[name] [database_role]
-    FROM [sys].[database_role_members] [m]
-        INNER JOIN [sys].[database_principals] [u] 
-            INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [u].[sid]
-        ON [u].[principal_id] = [m].[member_principal_id]
-        INNER JOIN [sys].[database_principals] [g] ON [g].[principal_id] = [m].[role_principal_id]
-    WHERE [sp].[name] LIKE ''' + ISNULL(@UserName, '%') + '''
+        [member_name],
+        [database_role]
+    FROM cteRoles
     ORDER BY [member_name], [database_role];
 END
 ';
@@ -176,6 +192,7 @@ END
     -- 5. database role permissions
     SET @SQLcmd = N'
 USE ' + QUOTENAME(@DatabaseName, '[') + ';
+-- check if a member of a role
 IF EXISTS(
     SELECT 1
     FROM [sys].[database_role_members] [m]
@@ -183,28 +200,38 @@ IF EXISTS(
             INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [u].[sid]
         ON [u].[principal_id] = [m].[member_principal_id]
         INNER JOIN [sys].[database_principals] [g] ON [g].[principal_id] = [m].[role_principal_id]
-    WHERE [sp].[name] LIKE ''' + ISNULL(@UserName, '%') + '''
+    WHERE [sp].[name] LIKE ''' + COALESCE(@UserName, '%') + '''
     )
 BEGIN
-    WITH cteRoles AS (
+    -- get the role name/s
+    WITH cteRoles ( [database_role] )
+    AS (
+        -- get anchor member
         SELECT 
             [g].[name] [database_role]
         FROM [sys].[database_role_members] [m]
-            INNER JOIN [sys].[database_principals] [u] 
-                INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [u].[sid]
-            ON [u].[principal_id] = [m].[member_principal_id]
+            INNER JOIN [sys].[database_principals] [u] ON [u].[principal_id] = [m].[member_principal_id]
             INNER JOIN [sys].[database_principals] [g] ON [g].[principal_id] = [m].[role_principal_id]
-        WHERE [sp].[name] LIKE ''' + ISNULL(@UserName, '%') + '''
+            INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [u].[sid]
+        WHERE [sp].[name] LIKE ''' + COALESCE(@UserName, '%') + '''
+
+        UNION ALL
+        -- get nested roles
+        SELECT 
+            [g].[name]
+        FROM [sys].[database_role_members] [m]
+            INNER JOIN [sys].[database_principals] [u] ON [u].[principal_id] = [m].[member_principal_id]
+            INNER JOIN [sys].[database_principals] [g] ON [g].[principal_id] = [m].[role_principal_id]
     )
     SELECT 
         DB_NAME() AS [database_name],
         [prin].[name] [database_principal], 
         [sec].[state_desc] + '' '' + [sec].[permission_name] [permission_name],
-        ISNULL(QUOTENAME([sch].[name], ''['') + ''.'' + QUOTENAME([obj].[name], ''[''), ''N/A'') [object_name],
-        ISNULL([obj].[type_desc], ''N/A'') [object_type]
+        COALESCE(QUOTENAME([sch].[name], ''['') + ''.'' + QUOTENAME([obj].[name], ''[''), ''N/A'') [object_name],
+        COALESCE([obj].[type_desc], ''N/A'') [object_type]
     FROM [sys].[database_permissions] [sec]
         INNER JOIN [sys].[database_principals] [prin] 
-            INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [prin].[sid]
+            --INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [prin].[sid]
         ON [sec].[grantee_principal_id] = [prin].[principal_id]
         LEFT OUTER JOIN [sys].[objects] [obj] 
             INNER JOIN [sys].[schemas] [sch] ON [sch].[schema_id] = [obj].[schema_id]
@@ -241,7 +268,7 @@ FROM sys.database_principals dp
 WHERE dp.principal_id > 4
 AND dp.type LIKE ''[GSU]''
 AND sp.sid IS NULL
-AND dp.[name] LIKE ''' + ISNULL(@UserName, '%') + '''
+AND dp.[name] LIKE ''' + COALESCE(@UserName, '%') + '''
 ORDER BY [object_name], [object_type], [database_principal], [permission_name];
 ';
     INSERT INTO #DatabasePermissions
@@ -361,7 +388,7 @@ FROM [catalog].[explicit_object_permissions] eop
     INNER JOIN sys.database_principals dp 
         INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [dp].[sid]
     ON eop.[principal_id] = dp.principal_id
-AND sp.[name] LIKE ''' + ISNULL(@UserName, '%') + '''';
+AND sp.[name] LIKE ''' + COALESCE(@UserName, '%') + '''';
 
     EXEC sp_executesql @SQLcmd;
 END
@@ -375,7 +402,7 @@ SELECT
 FROM msdb.dbo.sysjobs sj
     INNER JOIN sys.server_principals sp ON sj.[owner_sid] = sp.[sid]
 WHERE sp.[name] NOT IN (SELECT [name] FROM @ExcludedAccounts)
-AND sp.[name] LIKE '' + ISNULL(@UserName, '%') + ''
+AND sp.[name] LIKE '' + COALESCE(@UserName, '%') + ''
 ORDER BY [owner_name], [job_name];
 
 -- 8. get database ownership
@@ -386,7 +413,7 @@ SELECT
 FROM sys.databases d
     INNER JOIN sys.server_principals sp ON d.[owner_sid] = sp.[sid]
 WHERE sp.[name] NOT IN (SELECT [name] FROM @ExcludedAccounts)
-AND sp.[name] LIKE '' + ISNULL(@UserName, '%') + ''
+AND sp.[name] LIKE '' + COALESCE(@UserName, '%') + ''
 ORDER BY [owner_name], [database_name];
 
 
