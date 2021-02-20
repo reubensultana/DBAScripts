@@ -1,4 +1,4 @@
--- Source: https://github.com/reubensultana/DBAScripts/blob/master/FragmentationInfo.sql
+-- Source: https://github.com/reubensultana/DBAScripts/blob/master/Indexing/FragmentationInfo.sql
 
 -- variables
 declare @dbid int;

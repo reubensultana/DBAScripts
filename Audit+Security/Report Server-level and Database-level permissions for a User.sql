@@ -1,15 +1,23 @@
 USE [master]
+GO
+
 SET NOCOUNT ON;
 
 DECLARE @UserName nvarchar(128) = '%';      -- limit scope to a single login; uses pattern matching privided by the LIKE statement
-DECLARE @DatabaseName nvarchar(128) = NULL; -- limit scope to a single database
-DECLARE @ExcludeSystemDatabases bit = 0;    -- if value is "1" exclude system databases
-DECLARE @SALogin nvarchar(128) = N'';
+DECLARE @DatabaseName nvarchar(128) = NULL; -- limit scope to a single database (NOTE: no wildcards allowed); default is all
+DECLARE @ExcludeSystemDatabases bit = 0;    -- if value is "1" exclude system databases; default is to include them
+DECLARE @XMLOutput bit = 0;                 -- output results as a XML structure; default is multiple result sets
+DECLARE @ExcludedAccounts TABLE ([name] nvarchar(128)); -- -- list of accounts to exclude from the final queries and results
 
+-- add account names that you want excluded here:
+INSERT INTO @ExcludedAccounts VALUES (NULL);
+
+/* -------------------------------------------------- */
+-- get the name for the SA login (security practices recommend that this should be renamed)
+DECLARE @SALogin nvarchar(128) = N'';
 SET @SALogin = (SELECT name FROM sys.server_principals WHERE sid = 0x01);
 
--- accounts that will be excluded from the queries and results
-DECLARE @ExcludedAccounts TABLE ([name] nvarchar(128));
+-- default accounts that will be excluded from the queries and results
 INSERT INTO @ExcludedAccounts 
 VALUES 
     ('dbo'), (@SALogin), ('guest'), ('NT AUTHORITY\SYSTEM'), ('NT SERVICE\MSSQLSERVER'), ('NT SERVICE\SQLSERVERAGENT'),
@@ -44,23 +52,36 @@ SELECT
     END
     ) + N')' AS [permission_name],
   [srvperm].[state_desc],
+  -- grant
+    CASE 
+    WHEN [srvperm].[permission_name] LIKE 'CONNECT SQL%' THEN '-- N/A' 
+    ELSE 'USE [master];IF NOT EXISTS(SELECT * FROM sys.server_principals WHERE [name]=''' + [srvprin].[name] COLLATE DATABASE_DEFAULT + ''') GRANT ' + [srvperm].[permission_name] + ' TO ' + QUOTENAME([srvprin].[name], '[') + ';' 
+    -- ELSE '--'
+  END AS [grant_command],
+  -- revoke
   CASE 
-    WHEN [srvperm].[permission_name] LIKE 'CONNECT SQL%' THEN '-- USE [master];DROP LOGIN ' + QUOTENAME([srvprin].[name] COLLATE DATABASE_DEFAULT, '[') + ';' 
-    ELSE 'USE [master];REVOKE ' + [srvperm].[permission_name] + ' TO ' + QUOTENAME([srvprin].[name], '[') + ';' 
+    WHEN [srvperm].[permission_name] LIKE 'CONNECT SQL%' THEN '-- USE [master];IF EXISTS(SELECT * FROM sys.server_principals WHERE [name]=''' + [srvprin].[name] COLLATE DATABASE_DEFAULT + ''') DROP LOGIN ' + QUOTENAME([srvprin].[name] COLLATE DATABASE_DEFAULT, '[') + ';' 
+    ELSE 'USE [master];IF EXISTS(SELECT * FROM sys.server_principals WHERE [name]=''' + [srvprin].[name] COLLATE DATABASE_DEFAULT + ''') REVOKE ' + [srvperm].[permission_name] + ' TO ' + QUOTENAME([srvprin].[name], '[') + ';' 
     -- ELSE '--'
   END AS [revoke_command]
 INTO #x_ServerPermissions
 FROM [sys].[server_permissions] srvperm
     INNER JOIN [sys].[server_principals] srvprin ON [srvperm].[grantee_principal_id] = [srvprin].[principal_id] 
 WHERE [srvprin].[type] IN ('S', 'U', 'G')
-AND [srvprin].[name] LIKE ISNULL(@UserName, '%')
-AND [srvprin].[name] NOT IN (SELECT [name] FROM @ExcludedAccounts)
+AND [srvprin].[name] LIKE COALESCE(@UserName, '%')
+AND [srvprin].[name] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL)
 ORDER BY [server_principal], srvperm.class, [permission_name];
 
 -- 2. membership in server roles
 SELECT 
     [lgn].[name] AS [member_name], 
     SUSER_NAME([rm].[role_principal_id]) AS [server_role],
+    -- grant
+    (CASE 
+        WHEN ((@ProductVersion LIKE '9.%') OR (@ProductVersion LIKE '10.%')) THEN 'EXEC sp_addsrvrolemember ' + QUOTENAME([lgn].[name], '[') + ', ' + QUOTENAME(SUSER_NAME([rm].[role_principal_id]), '[') + ';'
+        ELSE 'ALTER SERVER ROLE ' + QUOTENAME(SUSER_NAME([rm].[role_principal_id]), '[') + ' ADD MEMBER ' + QUOTENAME([lgn].[name], '[') + ';' 
+    END) AS [grant_command],
+    -- revoke
     (CASE 
         WHEN ((@ProductVersion LIKE '9.%') OR (@ProductVersion LIKE '10.%')) THEN 'EXEC sp_dropsrvrolemember ' + QUOTENAME([lgn].[name], '[') + ', ' + QUOTENAME(SUSER_NAME([rm].[role_principal_id]), '[') + ';'
         ELSE 'ALTER SERVER ROLE ' + QUOTENAME(SUSER_NAME([rm].[role_principal_id]), '[') + ' DROP MEMBER ' + QUOTENAME([lgn].[name], '[') + ';' 
@@ -69,8 +90,8 @@ INTO #x_ServerRoleMembership
 FROM [sys].[server_role_members] [rm]
     INNER JOIN [sys].[server_principals] [lgn] ON [rm].[member_principal_id] = [lgn].[principal_id]
 WHERE [rm].[role_principal_id] BETWEEN 3 AND 10
-AND [lgn].[name] LIKE ISNULL(@UserName, '%')
-AND [lgn].[name] NOT IN (SELECT [name] FROM @ExcludedAccounts)
+AND [lgn].[name] LIKE COALESCE(@UserName, '%')
+AND [lgn].[name] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL)
 ORDER BY [member_name], [server_role];
 
 
@@ -105,14 +126,28 @@ CREATE TABLE #x_SsisdbPermissions (
     [object_type] nvarchar(100),
     [object_name] nvarchar(250),
     [permission_type] nvarchar(100),
+    [grant_command] nvarchar(max),
     [revoke_command] nvarchar(max)
 );
 
 SET @DatabaseList = CURSOR READ_ONLY FOR
     SELECT [name] FROM sys.databases
-    WHERE [state] = 0
+    WHERE state = 0
     AND database_id > (CASE WHEN @ExcludeSystemDatabases = 0 THEN 0 ELSE 4 END)
     AND database_id = (CASE WHEN NULLIF(@DatabaseName, '') IS NOT NULL THEN DB_ID(@DatabaseName) ELSE database_id END)
+    -- exclude LOCAL databases in that are in SECONDARY role of an AG
+    AND [database_id] NOT IN (
+        SELECT [database_id] FROM sys.dm_hadr_database_replica_states
+        WHERE [is_local]=1 
+        AND [is_primary_replica]=0 -- SQL Server 2014 (12.x) and later.
+    )
+    -- exclude LOCAL databases in that are in SECONDARY role of Database Mirroring Configuration
+    AND [database_id] NOT IN (
+        SELECT sd.[database_id]
+        FROM sys.databases sd
+            INNER JOIN sys.database_mirroring dm ON sd.[database_id] = dm.[database_id]
+        WHERE dm.[mirroring_guid] IS NOT NULL AND dm.[mirroring_role] <> 1
+    )
 OPEN @DatabaseList
 FETCH NEXT FROM @DatabaseList INTO @DatabaseName
 WHILE (@@FETCH_STATUS = 0)
@@ -125,14 +160,16 @@ SELECT
     DB_NAME() AS [database_name],
     [prin].[name] [database_principal], 
     [sec].[state_desc] + '' '' + [sec].[permission_name] [permission_name],
-    ISNULL(QUOTENAME([sch].[name], ''['') + ''.'' + QUOTENAME([obj].[name], ''[''), ''N/A'') [object_name],
-    ISNULL([obj].[type_desc], ''N/A'') [object_type]
+    COALESCE(QUOTENAME([sch].[name], ''['') + ''.'' + QUOTENAME([obj].[name], ''[''), ''N/A'') [object_name],
+    COALESCE([obj].[type_desc], ''N/A'') [object_type]
 FROM [sys].[database_permissions] [sec]
-    INNER JOIN [sys].[database_principals] [prin] ON [sec].[grantee_principal_id] = [prin].[principal_id]
+    INNER JOIN [sys].[database_principals] [prin]
+        INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [prin].[sid]
+    ON [sec].[grantee_principal_id] = [prin].[principal_id]
     LEFT OUTER JOIN [sys].[objects] [obj] 
         INNER JOIN [sys].[schemas] [sch] ON [sch].[schema_id] = [obj].[schema_id]
     ON [obj].[object_id] = [sec].[major_id]
-WHERE [prin].[name] LIKE ''' + ISNULL(@UserName, '%') + '''
+WHERE [sp].[name] LIKE ''' + COALESCE(@UserName, '%') + '''
 AND [sec].[class] IN (0, 1)
 ORDER BY [object_name], [object_type], [database_principal], [permission_name];
 ';
@@ -148,17 +185,35 @@ IF EXISTS(
     FROM [sys].[database_role_members] [m]
         INNER JOIN [sys].[database_principals] [u] ON [u].[principal_id] = [m].[member_principal_id]
         INNER JOIN [sys].[database_principals] [g] ON [g].[principal_id] = [m].[role_principal_id]
-    WHERE [u].[name] LIKE ''' + ISNULL(@UserName, '%') + '''
+    WHERE [u].[name] LIKE ''' + COALESCE(@UserName, '%') + '''
     )
 BEGIN
-    SELECT 
+    WITH cteRoles ( [member_name], [database_role] )
+    AS (
+        -- get anchor member
+        SELECT 
+            [u].[name] [member_name],
+            [g].[name] [database_role]
+        FROM [sys].[database_role_members] [m]
+            INNER JOIN [sys].[database_principals] [u] ON [u].[principal_id] = [m].[member_principal_id]
+            INNER JOIN [sys].[database_principals] [g] ON [g].[principal_id] = [m].[role_principal_id]
+            INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [u].[sid]
+        WHERE [sp].[name] LIKE ''' + COALESCE(@UserName, '%') + '''
+
+        UNION ALL
+        -- get nested roles
+        SELECT 
+            [u].[name],
+            [g].[name]
+        FROM [sys].[database_role_members] [m]
+            INNER JOIN [sys].[database_principals] [u] ON [u].[principal_id] = [m].[member_principal_id]
+            INNER JOIN [sys].[database_principals] [g] ON [g].[principal_id] = [m].[role_principal_id]
+    )
+    SELECT DISTINCT
         DB_NAME() AS [database_name],
-        [u].[name] [member_name],
-        [g].[name] [database_role]
-    FROM [sys].[database_role_members] [m]
-        INNER JOIN [sys].[database_principals] [u] ON [u].[principal_id] = [m].[member_principal_id]
-        INNER JOIN [sys].[database_principals] [g] ON [g].[principal_id] = [m].[role_principal_id]
-    WHERE [u].[name] LIKE ''' + ISNULL(@UserName, '%') + '''
+        [member_name],
+        [database_role]
+    FROM cteRoles
     ORDER BY [member_name], [database_role];
 END
 ';
@@ -168,30 +223,47 @@ END
     -- 5. database role permissions
     SET @SQLcmd = N'
 USE ' + QUOTENAME(@DatabaseName, '[') + ';
+-- check if a member of a role
 IF EXISTS(
     SELECT 1
     FROM [sys].[database_role_members] [m]
-        INNER JOIN [sys].[database_principals] [u] ON [u].[principal_id] = [m].[member_principal_id]
+        INNER JOIN [sys].[database_principals] [u] 
+            INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [u].[sid]
+        ON [u].[principal_id] = [m].[member_principal_id]
         INNER JOIN [sys].[database_principals] [g] ON [g].[principal_id] = [m].[role_principal_id]
-    WHERE [u].[name] LIKE ''' + ISNULL(@UserName, '%') + '''
+    WHERE [sp].[name] LIKE ''' + COALESCE(@UserName, '%') + '''
     )
 BEGIN
-    WITH cteRoles AS (
+    -- get the role name/s
+    WITH cteRoles ( [database_role] )
+    AS (
+        -- get anchor member
         SELECT 
             [g].[name] [database_role]
         FROM [sys].[database_role_members] [m]
             INNER JOIN [sys].[database_principals] [u] ON [u].[principal_id] = [m].[member_principal_id]
             INNER JOIN [sys].[database_principals] [g] ON [g].[principal_id] = [m].[role_principal_id]
-        WHERE [u].[name] LIKE ''' + ISNULL(@UserName, '%') + '''
+            INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [u].[sid]
+        WHERE [sp].[name] LIKE ''' + COALESCE(@UserName, '%') + '''
+
+        UNION ALL
+        -- get nested roles
+        SELECT 
+            [g].[name]
+        FROM [sys].[database_role_members] [m]
+            INNER JOIN [sys].[database_principals] [u] ON [u].[principal_id] = [m].[member_principal_id]
+            INNER JOIN [sys].[database_principals] [g] ON [g].[principal_id] = [m].[role_principal_id]
     )
-    SELECT 
+    SELECT DISTINCT
         DB_NAME() AS [database_name],
         [prin].[name] [database_principal], 
         [sec].[state_desc] + '' '' + [sec].[permission_name] [permission_name],
-        ISNULL(QUOTENAME([sch].[name], ''['') + ''.'' + QUOTENAME([obj].[name], ''[''), ''N/A'') [object_name],
-        ISNULL([obj].[type_desc], ''N/A'') [object_type]
+        COALESCE(QUOTENAME([sch].[name], ''['') + ''.'' + QUOTENAME([obj].[name], ''[''), ''N/A'') [object_name],
+        COALESCE([obj].[type_desc], ''N/A'') [object_type]
     FROM [sys].[database_permissions] [sec]
-        INNER JOIN [sys].[database_principals] [prin] ON [sec].[grantee_principal_id] = [prin].[principal_id]
+        INNER JOIN [sys].[database_principals] [prin] 
+            --INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [prin].[sid]
+        ON [sec].[grantee_principal_id] = [prin].[principal_id]
         LEFT OUTER JOIN [sys].[objects] [obj] 
             INNER JOIN [sys].[schemas] [sch] ON [sch].[schema_id] = [obj].[schema_id]
         ON [obj].[object_id] = [sec].[major_id]
@@ -227,7 +299,7 @@ FROM sys.database_principals dp
 WHERE dp.principal_id > 4
 AND dp.type LIKE ''[GSU]''
 AND sp.sid IS NULL
-AND dp.[name] LIKE ''' + ISNULL(@UserName, '%') + '''
+AND dp.[name] LIKE ''' + COALESCE(@UserName, '%') + '''
 ORDER BY [object_name], [object_type], [database_principal], [permission_name];
 ';
     INSERT INTO #DatabasePermissions
@@ -245,13 +317,19 @@ SELECT DISTINCT
     dp.[permission_name],
     dp.[object_name],
     dp.[object_type],
+    -- grant
     'USE ' + QUOTENAME(dp.database_name, '[') + ';' + 
-    REPLACE(dp.[permission_name], 'GRANT', 'REVOKE') + 
+    dp.[permission_name] + 
+        CASE dp.[object_name] WHEN 'N/A' THEN '' ELSE ' ON ' + dp.[object_name] END + 
+        ' TO ' + QUOTENAME(dp.[database_principal], '[') + ';' AS [grant_command],
+    -- revoke
+    'USE ' + QUOTENAME(dp.database_name, '[') + ';' + 
+    REPLACE(REPLACE(dp.[permission_name], 'GRANT', 'REVOKE'), 'DENY', 'REVOKE') + 
         CASE dp.[object_name] WHEN 'N/A' THEN '' ELSE ' ON ' + dp.[object_name] END + 
         ' TO ' + QUOTENAME(dp.[database_principal], '[') + ';' AS [revoke_command]
 INTO #x_DatabaseObjectPermissions
 FROM #DatabasePermissions dp
-WHERE dp.[database_principal] NOT IN (SELECT [name] FROM @ExcludedAccounts)
+WHERE dp.[database_principal] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL)
 ORDER BY dp.[database_name],
     dp.[database_principal],
     dp.[permission_name],
@@ -263,31 +341,46 @@ AS (
     SELECT DISTINCT
         dp.[database_name],
         dp.[database_principal],
+        -- grant
+        'USE ' + QUOTENAME(dp.database_name, '[') + ';' + 
+        'IF NOT EXISTS(SELECT 1 FROM sys.schemas WHERE [name] = ''' + dp.[database_principal] + ''') CREATE SCHEMA ' + QUOTENAME(dp.[database_principal], '[') + ' AUTHORIZATION [dbo];' AS [grant_command],
+        -- revoke
         'USE ' + QUOTENAME(dp.database_name, '[') + ';' + 
         'IF EXISTS(SELECT 1 FROM sys.schemas WHERE [name] = ''' + dp.[database_principal] + ''') DROP SCHEMA ' + QUOTENAME(dp.[database_principal], '[') + ';' AS [revoke_command],
         0 AS [ordering_column]
     FROM #DatabasePermissions dp
     WHERE dp.[permission_name] = 'GRANT CONNECT'
-    AND dp.[database_principal] NOT IN (SELECT [name] FROM @ExcludedAccounts)
+    AND dp.[database_principal] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL)
     UNION ALL
     SELECT DISTINCT
         dp.[database_name],
         dp.[database_principal],
+        -- grant
         'USE ' + QUOTENAME(dp.database_name, '[') + ';' + 
-        'DROP USER ' + QUOTENAME(dp.[database_principal], '[') + ';' AS [revoke_command],
+        'IF NOT EXISTS(SELECT * FROM sys.database_principals WHERE [name]=''' + dp.[database_principal] + ''') CREATE USER ' + QUOTENAME(dp.[database_principal], '[') + ' FOR LOGIN ' + QUOTENAME(dp.[database_principal], '[') + ';' AS [grant_command],
+        -- revoke
+        'USE ' + QUOTENAME(dp.database_name, '[') + ';' + 
+        'IF EXISTS(SELECT * FROM sys.database_principals WHERE [name]=''' + dp.[database_principal] + ''') DROP USER ' + QUOTENAME(dp.[database_principal], '[') + ';' AS [revoke_command],
         1 AS [ordering_column]
     FROM #DatabasePermissions dp
     WHERE dp.[permission_name] = 'GRANT CONNECT'
-    AND dp.[database_principal] NOT IN (SELECT [name] FROM @ExcludedAccounts)
+    AND dp.[database_principal] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL)
 )
-SELECT [database_name], [database_principal], [revoke_command]
+SELECT [database_name], [database_principal], [grant_command], [revoke_command]
 INTO #x_UsersAndSchemas
 FROM cteDatabasePermissions
 ORDER BY [database_name], [database_principal], [ordering_column];
 
 -- 4. role membership
-SELECT 
+SELECT
     drm.database_name, drm.member_name, drm.database_role,
+    -- grant
+    'USE ' + QUOTENAME(drm.database_name, '[') + ';' + (
+    CASE 
+        WHEN ((@ProductVersion LIKE '9.%') OR (@ProductVersion LIKE '10.%')) THEN 'EXEC sp_addrolemember ' + QUOTENAME([database_role], '[') + ', ' + QUOTENAME([member_name], '[') + ';'
+        ELSE 'ALTER ROLE ' + QUOTENAME([database_role], '[') + ' ADD MEMBER ' + QUOTENAME([member_name], '[') + ';' 
+    END) AS [grant_command],
+    -- revoke
     'USE ' + QUOTENAME(drm.database_name, '[') + ';' + (
     CASE 
         WHEN ((@ProductVersion LIKE '9.%') OR (@ProductVersion LIKE '10.%')) THEN 'EXEC sp_droprolemember ' + QUOTENAME([database_role], '[') + ', ' + QUOTENAME([member_name], '[') + ';'
@@ -295,18 +388,28 @@ SELECT
     END) AS [revoke_command]
 INTO #x_DatabaseRoleMembership
 FROM #DatabaseRoleMembership drm
-WHERE drm.member_name NOT IN (SELECT [name] FROM @ExcludedAccounts)
+WHERE drm.member_name NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL)
 ORDER BY drm.database_name, drm.member_name, drm.database_role;
 
 -- 5. permissions inherited through database roles
-SELECT * 
+SELECT *, 
+    'USE ' + QUOTENAME(dp.[database_name], '[') + ';' + 
+    dp.[permission_name] + 
+        CASE dp.[object_name] WHEN 'N/A' THEN '' ELSE ' ON ' + dp.[object_name] END + 
+        ' TO ' + QUOTENAME(dp.[database_principal], '[') + ';' AS [grant_command],
+    -- revoke
+    'USE ' + QUOTENAME(dp.[database_name], '[') + ';' + 
+    REPLACE(REPLACE(dp.[permission_name], 'GRANT', 'REVOKE'), 'DENY', 'REVOKE') + 
+        CASE dp.[object_name] WHEN 'N/A' THEN '' ELSE ' ON ' + dp.[object_name] END + 
+        ' TO ' + QUOTENAME(dp.[database_principal], '[') + ';' AS [revoke_command]
 INTO #x_InheritedPermissions
-FROM #DatabaseRolePermissions
-WHERE database_principal NOT IN (SELECT [name] FROM @ExcludedAccounts);
+FROM #DatabaseRolePermissions dp
+WHERE dp.[database_principal] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL);
 
 -- 6. get SSISDB permissions
 IF EXISTS(SELECT 1 FROM sys.databases WHERE [name] = 'SSISDB')
 BEGIN
+    -- using Dynamic SQL as Parsing will erro if the database does not exist
     SET @SQLcmd = N'
 USE [SSISDB];
 SELECT 
@@ -342,6 +445,14 @@ SELECT
         ELSE ''''
     END) AS [permission_type],
 
+    -- grant
+    ''EXEC [SSISDB].[catalog].[grant_permission] @object_type = '' + 
+        CAST(eop.[object_type] AS varchar(10)) + '', @object_id = '' + 
+        CAST(eop.[object_id] AS varchar(10)) + '', @principal_id = '' + 
+        CAST(eop.[principal_id] AS varchar(10)) + '', @permission_type = '' + 
+        CAST(eop.[permission_type] AS varchar(10)) + '';'' AS [grant_command],
+    
+    -- revoke
     ''EXEC [SSISDB].[catalog].[revoke_permission] @object_type = '' + 
         CAST(eop.[object_type] AS varchar(10)) + '', @object_id = '' + 
         CAST(eop.[object_id] AS varchar(10)) + '', @principal_id = '' + 
@@ -349,8 +460,10 @@ SELECT
         CAST(eop.[permission_type] AS varchar(10)) + '';'' AS [revoke_command]
 
 FROM [catalog].[explicit_object_permissions] eop
-    INNER JOIN sys.database_principals dp ON eop.[principal_id] = dp.principal_id
-AND dp.[name] LIKE ''' + ISNULL(@UserName, '%') + '''';
+    INNER JOIN sys.database_principals dp 
+        INNER JOIN [sys].[server_principals] sp ON sp.[sid] = [dp].[sid]
+    ON eop.[principal_id] = dp.principal_id
+AND sp.[name] LIKE ''' + COALESCE(@UserName, '%') + '''';
 
     INSERT INTO #x_SsisdbPermissions ()
     EXEC sp_executesql @SQLcmd;
@@ -365,8 +478,8 @@ SELECT
 INTO #x_SQLAgentJobOwnership
 FROM msdb.dbo.sysjobs sj
     INNER JOIN sys.server_principals sp ON sj.[owner_sid] = sp.[sid]
-WHERE sp.[name] NOT IN (SELECT [name] FROM @ExcludedAccounts)
-AND sp.[name] LIKE '' + ISNULL(@UserName, '%') + ''
+WHERE sp.[name] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL)
+AND sp.[name] LIKE '' + COALESCE(@UserName, '%') + ''
 ORDER BY [owner_name], [job_name];
 
 -- 8. get database ownership
@@ -377,63 +490,92 @@ SELECT
 INTO #x_DatabaseOwnership
 FROM sys.databases d
     INNER JOIN sys.server_principals sp ON d.[owner_sid] = sp.[sid]
-WHERE sp.[name] NOT IN (SELECT [name] FROM @ExcludedAccounts)
-AND sp.[name] LIKE '' + ISNULL(@UserName, '%') + ''
+WHERE sp.[name] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL)
+AND sp.[name] LIKE '' + COALESCE(@UserName, '%') + ''
 ORDER BY [owner_name], [database_name];
 
 
-
 -- return data collected
-SELECT 
-    UPPER(COALESCE(@@SERVERNAME, CAST(SERVERPROPERTY('ServerName') AS nvarchar(128)), '')) AS [server_name],
+IF (@XMLOutput = 0)
+BEGIN
+    -- return multiple results sets
+    SELECT UPPER(COALESCE(@@SERVERNAME, CAST(SERVERPROPERTY('ServerName') AS nvarchar(128)), '')) AS [server_name];
     -- server_permissions
-    CONVERT(xml, (
-        SELECT * FROM #x_ServerPermissions
-        FOR XML PATH, ROOT('server_permissions'), ELEMENTS XSINIL
-    ), 2),
+    SELECT * FROM #x_ServerPermissions;
     -- server_role_membership
-    CONVERT(xml, (
-        SELECT * FROM #x_ServerRoleMembership
-        FOR XML PATH, ROOT('server_role_membership'), ELEMENTS XSINIL
-    ), 2),
+    SELECT * FROM #x_ServerRoleMembership;
     -- database_object_permissions
-    CONVERT(xml, (
-        SELECT * FROM #x_DatabaseObjectPermissions
-        FOR XML PATH, ROOT('database_object_permissions'), ELEMENTS XSINIL
-    ), 2),
+    SELECT * FROM #x_DatabaseObjectPermissions;
     -- users_and_schemas
-    CONVERT(xml, (
-        SELECT * FROM #x_UsersAndSchemas
-        FOR XML PATH, ROOT('users_and_schemas'), ELEMENTS XSINIL
-    ), 2),
+    SELECT * FROM #x_UsersAndSchemas;
     -- database_role_membership
-    CONVERT(xml, (
-        SELECT * FROM #x_DatabaseRoleMembership
-        FOR XML PATH, ROOT('database_role_membership'), ELEMENTS XSINIL
-    ), 2),
+    SELECT * FROM #x_DatabaseRoleMembership;
     -- inherited_permissions
-    CONVERT(xml, (
-        SELECT * FROM #x_InheritedPermissions
-        FOR XML PATH, ROOT('inherited_permissions'), ELEMENTS XSINIL
-    ), 2),
+    SELECT * FROM #x_InheritedPermissions;
     -- ssisdb_permissions
-    CONVERT(xml, (
-        SELECT * FROM #x_SsisdbPermissions
-        FOR XML PATH, ROOT('ssisdb_permissions'), ELEMENTS XSINIL
-    ), 2),
+    SELECT * FROM #x_SsisdbPermissions;
     -- sql_agent_job_ownership
-    CONVERT(xml, (
-        SELECT * FROM #x_SQLAgentJobOwnership
-        FOR XML PATH, ROOT('sql_agent_job_ownership'), ELEMENTS XSINIL
-    ), 2),
+    SELECT * FROM #x_SQLAgentJobOwnership;
     -- database_ownership
-    CONVERT(xml, (
-        SELECT * FROM #x_DatabaseOwnership
-        FOR XML PATH, ROOT('database_ownership'), ELEMENTS XSINIL
-    ), 2)
+    SELECT * FROM #x_DatabaseOwnership;
+    -- when this report was run
+    SELECT CURRENT_TIMESTAMP AS [current_timestamp];
+END
+ELSE IF (@XMLOutput = 1)
+BEGIN
+    -- return XML structure
+    SELECT 
+        UPPER(COALESCE(@@SERVERNAME, CAST(SERVERPROPERTY('ServerName') AS nvarchar(128)), '')) AS [server_name],
+        -- server_permissions
+        CONVERT(xml, (
+            SELECT * FROM #x_ServerPermissions
+            FOR XML PATH, ROOT('server_permissions'), ELEMENTS XSINIL
+        ), 2),
+        -- server_role_membership
+        CONVERT(xml, (
+            SELECT * FROM #x_ServerRoleMembership
+            FOR XML PATH, ROOT('server_role_membership'), ELEMENTS XSINIL
+        ), 2),
+        -- database_object_permissions
+        CONVERT(xml, (
+            SELECT * FROM #x_DatabaseObjectPermissions
+            FOR XML PATH, ROOT('database_object_permissions'), ELEMENTS XSINIL
+        ), 2),
+        -- users_and_schemas
+        CONVERT(xml, (
+            SELECT * FROM #x_UsersAndSchemas
+            FOR XML PATH, ROOT('users_and_schemas'), ELEMENTS XSINIL
+        ), 2),
+        -- database_role_membership
+        CONVERT(xml, (
+            SELECT * FROM #x_DatabaseRoleMembership
+            FOR XML PATH, ROOT('database_role_membership'), ELEMENTS XSINIL
+        ), 2),
+        -- inherited_permissions
+        CONVERT(xml, (
+            SELECT * FROM #x_InheritedPermissions
+            FOR XML PATH, ROOT('inherited_permissions'), ELEMENTS XSINIL
+        ), 2),
+        -- ssisdb_permissions
+        CONVERT(xml, (
+            SELECT * FROM #x_SsisdbPermissions
+            FOR XML PATH, ROOT('ssisdb_permissions'), ELEMENTS XSINIL
+        ), 2),
+        -- sql_agent_job_ownership
+        CONVERT(xml, (
+            SELECT * FROM #x_SQLAgentJobOwnership
+            FOR XML PATH, ROOT('sql_agent_job_ownership'), ELEMENTS XSINIL
+        ), 2),
+        -- database_ownership
+        CONVERT(xml, (
+            SELECT * FROM #x_DatabaseOwnership
+            FOR XML PATH, ROOT('database_ownership'), ELEMENTS XSINIL
+        ), 2),
+        -- when this report was run
+        CURRENT_TIMESTAMP AS [current_timestamp]
 
-FOR XML PATH('server'), ROOT('permissions'), ELEMENTS XSINIL;
-
+    FOR XML PATH('server'), ROOT('permissions'), ELEMENTS XSINIL;
+END
 
 -- clean up
 DROP TABLE #x_ServerPermissions

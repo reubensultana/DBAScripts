@@ -1,7 +1,8 @@
 USE [master]
 GO
 
-CREATE DATABASE [SampleDatabase]
+IF NOT EXISTS(SELECT * FROM sys.databases WHERE [name]='SampleDatabase')
+	EXEC sp_executesql N'CREATE DATABASE [SampleDatabase];'
 GO
 
 USE [SampleDatabase]
