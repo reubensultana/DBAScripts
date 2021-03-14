@@ -465,7 +465,7 @@ FROM [catalog].[explicit_object_permissions] eop
     ON eop.[principal_id] = dp.principal_id
 AND sp.[name] LIKE ''' + COALESCE(@UserName, '%') + '''';
 
-    INSERT INTO #x_SsisdbPermissions ()
+    INSERT INTO #x_SsisdbPermissions
     EXEC sp_executesql @SQLcmd;
 END
 
