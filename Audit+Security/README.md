@@ -18,7 +18,7 @@ The various configuration data sets retrieved are listed below. This information
 8. Default Data File Path
 9. Default Log File Path
 10. Integrated Security options
-11. Full Text installation sttatus
+11. Full Text installation status
 12. Whether the Instance is Clustered
 13. CLR Version
 14. Server Authentication allowed (description)
@@ -27,7 +27,7 @@ The various configuration data sets retrieved are listed below. This information
 17. Number of Logical Processors available
 18. OS Version
 19. Total amount of Memory in MB
-20. Date when the last Servie Pack/Update/Patch/CU was installed
+20. Date when the last Service Pack/Update/Patch/CU was installed
 21. Lists of:
     1. Active Endpoints/Listeners (unique values from the `sys.dm_exec_connections` DMV)
     2. Values from the `sys.configurations` table
