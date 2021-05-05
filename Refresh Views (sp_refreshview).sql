@@ -11,7 +11,7 @@ CREATE TABLE #SQLCommands (sqlcmd nvarchar(4000));
 DECLARE curDatabases CURSOR FOR
     SELECT [name] FROM sys.databases
     WHERE [name] NOT IN (
-        'master', 'model', 'msdb', 'tempdb', 'db_dba')
+        'master', 'model', 'msdb', 'tempdb')
     AND [name] NOT LIKE 'AdventureWorks%'
     AND [name] NOT LIKE 'ReportServer%'
     ORDER BY [name] ASC;

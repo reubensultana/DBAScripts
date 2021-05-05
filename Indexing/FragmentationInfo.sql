@@ -39,6 +39,7 @@ CREATE TABLE #FragmentationInfo (
     [SchemaName]            nvarchar(128),
     [ObjectID]              int,
     [TableName]             nvarchar(128),
+    -- index properties
     [IndexID]               int,
     [IndexName]             nvarchar(128),
     [IndexType]             nvarchar(60),
@@ -47,7 +48,13 @@ CREATE TABLE #FragmentationInfo (
     [RecordCount]           bigint,
     [AllowPageLocks]        bit NULL,
     [AllowRowLocks]         bit NULL,
-	[StatsName]             nvarchar(128) NULL
+	-- statistics properties
+    [StatsName]             nvarchar(128) NULL,
+    [StatsLastUpdated]      datetime NULL,
+    [RowsInTable]           bigint NULL,
+    [RowsSampled]           bigint NULL,
+    [RowModifications]      bigint NULL,
+    [SamplePercent]         numeric(18,2) NULL
 );
 
 -- get fragmentation info
@@ -67,7 +74,12 @@ INSERT INTO #FragmentationInfo
         NULL,                   -- RecordCount
         NULL,                   -- AllowPageLocks
         NULL,                   -- AllowRowLocks
-        NULL                    -- StatsName
+        NULL,                   -- StatsName
+        NULL,                   -- StatsLastUpdated
+        NULL,                   -- RowsInTable
+        NULL,                   -- RowsSampled
+        NULL,                   -- RowModifications
+        NULL                    -- SamplePercent
     FROM sys.dm_db_index_physical_stats(@dbid, NULL, NULL, NULL, 'LIMITED') s
         INNER JOIN sys.databases d ON s.database_id = d.database_id
     WHERE d.database_id > 4 -- exclude master, tempdb, model, msdb
@@ -103,22 +115,30 @@ BEGIN
     -- If SCHEMA_NAME or OBJECT_NAME functions or Index Name are NULL save an empty string
     SET @SQLcmd = @SQLcmd + N'
 UPDATE f
-SET SchemaName = ISNULL(QUOTENAME(SCHEMA_NAME(o.schema_id), ''[''), ''''),
-    TableName =  ISNULL(QUOTENAME(OBJECT_NAME(f.objectid), ''[''), ''''),
-    IndexName =  ISNULL(QUOTENAME(i.[name], ''[''), ''''),
-    IndexType =  i.type_desc,
-    RecordCount = p.rows,
-    AllowPageLocks = i.allow_page_locks,
-    AllowRowLocks = i.allow_row_locks,
-    StatsName = QUOTENAME(s.[name], ''['')
+SET [SchemaName]        = ISNULL(QUOTENAME(SCHEMA_NAME(o.schema_id), ''[''), ''''),
+    [TableName]         = ISNULL(QUOTENAME(OBJECT_NAME(f.objectid), ''[''), ''''),
+    [IndexName]         = ISNULL(QUOTENAME(i.[name], ''[''), ''''),
+    [IndexType]         = i.type_desc,
+    [RecordCount]       = p.rows,
+    [AllowPageLocks]    = i.allow_page_locks,
+    [AllowRowLocks]     = i.allow_row_locks,
+    [StatsName]         = QUOTENAME(s.[name], ''[''),
+    [StatsLastUpdated]  = CAST([sp].[last_updated] AS datetime),
+    [RowsInTable]       = [sp].[rows],
+    [RowsSampled]       = [sp].[rows_sampled],
+    [RowModifications]  = [sp].[modification_counter],
+    [SamplePercent]     = CAST(([sp].[rows_sampled] * 100.0) / [sp].[rows] AS numeric(18,2))
 FROM #FragmentationInfo f
     INNER JOIN ' + @DatabaseName + N'.sys.objects o ON o.object_id = f.ObjectID
     INNER JOIN ' + @DatabaseName + N'.sys.indexes i ON i.object_id = f.ObjectID AND i.index_id = f.IndexID
 	LEFT OUTER JOIN ' + @DatabaseName + N'.sys.stats s ON s.object_id = i.object_id AND s.name = i.name
     LEFT OUTER JOIN ' + @DatabaseName + N'.sys.partitions p ON p.object_id = f.ObjectID AND p.index_id = f.IndexID
-WHERE f.DatabaseName = ''' + @DatabaseName + '''
-AND i.is_disabled = 0
-AND i.type_desc IN (''CLUSTERED'', ''NONCLUSTERED'');';
+    OUTER APPLY [sys].[dm_db_stats_properties]([o].[object_id], [s].[stats_id]) sp
+WHERE [f].[DatabaseName] = ''' + @DatabaseName + '''
+AND [i].[is_disabled] = 0
+AND [i].[type_desc] IN (''CLUSTERED'', ''NONCLUSTERED'')
+AND [s].[name] NOT LIKE ''_WA_Sys_%''
+;';
 
     EXEC sp_executesql @SQLcmd;
 
@@ -127,6 +147,8 @@ END
 CLOSE @DatabaseNames
 DEALLOCATE @DatabaseNames
 
-SELECT * FROM #FragmentationInfo ORDER BY [SchemaName], [TableName], [IndexID] ASC;
+SELECT @@SERVERNAME AS [ServerName], *, CURRENT_TIMESTAMP AS [CurrentTimestamp]
+FROM #FragmentationInfo 
+ORDER BY [SchemaName], [TableName], [IndexID] ASC;
 
 DROP TABLE #FragmentationInfo;

@@ -1,13 +1,19 @@
 <Configuration>
-<VGpu>Disable</VGpu>
-<Networking>Enable</Networking>
-<MappedFolders>
-   <MappedFolder>
-     <HostFolder>C:\TEMP</HostFolder>
-     <ReadOnly>true</ReadOnly>
-   </MappedFolder>
-</MappedFolders>
-<LogonCommand>
-   <Command>explorer.exe C:\users\WDAGUtilityAccount\Desktop\TEMP</Command>
-</LogonCommand>
+   <VGpu>Disable</VGpu>
+   <Networking>Enable</Networking>
+   <MappedFolders>
+      <MappedFolder>
+         <HostFolder>C:\TEMP</HostFolder>
+         <ReadOnly>true</ReadOnly>
+      </MappedFolder>
+   </MappedFolders>
+   <LogonCommand>
+      <Command>explorer.exe C:\users\WDAGUtilityAccount\Desktop\TEMP</Command>
+   </LogonCommand>
+   <AudioInput>Enable</AudioInput>
+   <VideoInput>Enable</VideoInput>
+   <ProtectedClient>Disable</ProtectedClient>
+   <PrinterRedirection>Enable</PrinterRedirection>
+   <ClipboardRedirection>Enable</ClipboardRedirection>
+   <MemoryInMB>2048</MemoryInMB>
 </Configuration>
