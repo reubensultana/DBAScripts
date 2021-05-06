@@ -1,5 +1,6 @@
--- Source: https://github.com/reubensultana/DBAScripts/blob/master/Indexing/FragmentationInfo.sql
+/* Source: https://github.com/reubensultana/DBAScripts/blob/master/Indexing/FragmentationInfo.sql */
 
+SET NOCOUNT ON;
 -- variables
 declare @dbid int;
 declare @MaxFragmentation float;        -- Maximum acceptable fragmentation level
