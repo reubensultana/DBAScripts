@@ -1,5 +1,15 @@
 /* Source: https://github.com/reubensultana/DBAScripts/blob/master/Indexing/StatisticsInfo.sql */
 
+/* NOTE: This script should be run using SQLCMD mode */
+:ON ERROR EXIT
+
+:SETVAR SQLServerInstance "localhost,1433"
+:SETVAR DatabaseName "Adventureworks"
+
+:CONNECT $(SQLServerInstance)
+USE [$(DatabaseName)]
+GO
+
 SET NOCOUNT ON;
 SELECT
     [ServerName]        = @@SERVERNAME,

@@ -1,5 +1,14 @@
 /* Source: https://github.com/reubensultana/DBAScripts/blob/master/Indexing/FragmentationInfo.sql */
 
+/* NOTE: This script should be run using SQLCMD mode */
+:ON ERROR EXIT
+
+:SETVAR SQLServerInstance "localhost,1433"
+:SETVAR DatabaseName "Adventureworks"
+
+:CONNECT $(SQLServerInstance)
+USE [$(DatabaseName)]
+GO
 SET NOCOUNT ON;
 -- variables
 declare @dbid int;
