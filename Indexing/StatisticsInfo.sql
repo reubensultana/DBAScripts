@@ -26,7 +26,7 @@ SELECT
 FROM [sys].[stats] [ss]
     INNER JOIN [sys].[objects] [so] ON [ss].[object_id] = [so].[object_id]
     INNER JOIN [sys].[schemas] [sch] ON [so].[schema_id] = [sch].[schema_id]
-    OUTER APPLY [sys].[dm_db_stats_properties] ([so].[object_id], [ss].[stats_id])
+    OUTER APPLY [sys].[dm_db_stats_properties] ([so].[object_id], [ss].[stats_id]) [sp]
 WHERE 1=1
 AND [sch].[name] !=  N'sys'
 AND [so].[type] = 'U'
