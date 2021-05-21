@@ -1,3 +1,11 @@
+/* Source: https://github.com/reubensultana/DBAScripts/blob/master/Audit+Security/Report Server-level and Database-level permissions for a User.sql */
+
+/* NOTE: This script should be run using SQLCMD mode */
+:ON ERROR EXIT
+
+:SETVAR SQLServerInstance "localhost,1433"
+
+:CONNECT $(SQLServerInstance)
 USE [master]
 GO
 
@@ -27,6 +35,13 @@ VALUES
     ('dc_admin'), ('dc_operator'), ('dc_proxy'), ('mds_email_user'), ('MS_DataCollectorInternalUser'), ('PolicyAdministratorRole'), 
     ('RSExecRole'), ('ServerGroupAdministratorRole'), ('SQLAgentOperatorRole'), ('SQLAgentReaderRole'), ('UtilityIMRWriter'),
     ('dqs_administrator'), ('dqs_kb_editor'), ('MDS_ServiceAccounts');
+
+-- exclude Service Accounts
+IF (OBJECT_ID('sys.dm_server_services') IS NOT NULL)
+BEGIN
+    INSERT INTO @ExcludedAccounts 
+    EXEC sp_executesql N'SELECT [service_account] FROM sys.dm_server_services';
+END
 
 CREATE TABLE #msver (
 	[Index] int,
@@ -69,8 +84,7 @@ FROM [sys].[server_permissions] srvperm
     INNER JOIN [sys].[server_principals] srvprin ON [srvperm].[grantee_principal_id] = [srvprin].[principal_id] 
 WHERE [srvprin].[type] IN ('S', 'U', 'G')
 AND [srvprin].[name] LIKE COALESCE(@UserName, '%')
-AND [srvprin].[name] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL)
-ORDER BY [server_principal], srvperm.class, [permission_name];
+AND [srvprin].[name] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL);
 
 -- 2. membership in server roles
 SELECT 
@@ -91,8 +105,7 @@ FROM [sys].[server_role_members] [rm]
     INNER JOIN [sys].[server_principals] [lgn] ON [rm].[member_principal_id] = [lgn].[principal_id]
 WHERE [rm].[role_principal_id] BETWEEN 3 AND 10
 AND [lgn].[name] LIKE COALESCE(@UserName, '%')
-AND [lgn].[name] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL)
-ORDER BY [member_name], [server_role];
+AND [lgn].[name] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL);
 
 
 --DECLARE @DatabaseName nvarchar(128);
@@ -170,8 +183,7 @@ FROM [sys].[database_permissions] [sec]
         INNER JOIN [sys].[schemas] [sch] ON [sch].[schema_id] = [obj].[schema_id]
     ON [obj].[object_id] = [sec].[major_id]
 WHERE [sp].[name] LIKE ''' + COALESCE(@UserName, '%') + '''
-AND [sec].[class] IN (0, 1)
-ORDER BY [object_name], [object_type], [database_principal], [permission_name];
+AND [sec].[class] IN (0, 1);
 ';
     INSERT INTO #DatabasePermissions
         EXEC sp_executesql @SQLcmd;
@@ -213,8 +225,7 @@ BEGIN
         DB_NAME() AS [database_name],
         [member_name],
         [database_role]
-    FROM cteRoles
-    ORDER BY [member_name], [database_role];
+    FROM cteRoles;
 END
 ';
     INSERT INTO #DatabaseRoleMembership
@@ -268,8 +279,7 @@ BEGIN
             INNER JOIN [sys].[schemas] [sch] ON [sch].[schema_id] = [obj].[schema_id]
         ON [obj].[object_id] = [sec].[major_id]
     WHERE [prin].[name] IN ( SELECT [database_role] FROM cteRoles )
-    AND [sec].[class] IN (0, 1)
-    ORDER BY [object_name], [object_type], [database_principal], [permission_name];
+    AND [sec].[class] IN (0, 1);
 END
 ';
     INSERT INTO #DatabaseRolePermissions
@@ -299,8 +309,7 @@ FROM sys.database_principals dp
 WHERE dp.principal_id > 4
 AND dp.type LIKE ''[GSU]''
 AND sp.sid IS NULL
-AND dp.[name] LIKE ''' + COALESCE(@UserName, '%') + '''
-ORDER BY [object_name], [object_type], [database_principal], [permission_name];
+AND dp.[name] LIKE ''' + COALESCE(@UserName, '%') + ''';
 ';
     INSERT INTO #DatabasePermissions
         EXEC sp_executesql @SQLcmd;
@@ -329,11 +338,7 @@ SELECT DISTINCT
         ' TO ' + QUOTENAME(dp.[database_principal], '[') + ';' AS [revoke_command]
 INTO #x_DatabaseObjectPermissions
 FROM #DatabasePermissions dp
-WHERE dp.[database_principal] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL)
-ORDER BY dp.[database_name],
-    dp.[database_principal],
-    dp.[permission_name],
-    dp.[object_name];
+WHERE dp.[database_principal] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL);
 
 -- 3. user accounts and schemas
 with cteDatabasePermissions 
@@ -368,8 +373,7 @@ AS (
 )
 SELECT [database_name], [database_principal], [grant_command], [revoke_command]
 INTO #x_UsersAndSchemas
-FROM cteDatabasePermissions
-ORDER BY [database_name], [database_principal], [ordering_column];
+FROM cteDatabasePermissions;
 
 -- 4. role membership
 SELECT
@@ -389,7 +393,7 @@ SELECT
 INTO #x_DatabaseRoleMembership
 FROM #DatabaseRoleMembership drm
 WHERE drm.member_name NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL)
-ORDER BY drm.database_name, drm.member_name, drm.database_role;
+AND drm.member_name LIKE COALESCE(@UserName, '%');
 
 -- 5. permissions inherited through database roles
 SELECT *, 
@@ -404,7 +408,8 @@ SELECT *,
         ' TO ' + QUOTENAME(dp.[database_principal], '[') + ';' AS [revoke_command]
 INTO #x_InheritedPermissions
 FROM #DatabaseRolePermissions dp
-WHERE dp.[database_principal] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL);
+WHERE dp.[database_principal] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL)
+AND dp.[database_principal] IN (SELECT DISTINCT [database_role] FROM #x_DatabaseRoleMembership);
 
 -- 6. get SSISDB permissions
 IF EXISTS(SELECT 1 FROM sys.databases WHERE [name] = 'SSISDB')
@@ -479,8 +484,7 @@ INTO #x_SQLAgentJobOwnership
 FROM msdb.dbo.sysjobs sj
     INNER JOIN sys.server_principals sp ON sj.[owner_sid] = sp.[sid]
 WHERE sp.[name] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL)
-AND sp.[name] LIKE '' + COALESCE(@UserName, '%') + ''
-ORDER BY [owner_name], [job_name];
+AND sp.[name] LIKE '' + COALESCE(@UserName, '%') + '';
 
 -- 8. get database ownership
 SELECT 
@@ -491,8 +495,7 @@ INTO #x_DatabaseOwnership
 FROM sys.databases d
     INNER JOIN sys.server_principals sp ON d.[owner_sid] = sp.[sid]
 WHERE sp.[name] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL)
-AND sp.[name] LIKE '' + COALESCE(@UserName, '%') + ''
-ORDER BY [owner_name], [database_name];
+AND sp.[name] LIKE '' + COALESCE(@UserName, '%') + '';
 
 
 -- return data collected
@@ -501,23 +504,23 @@ BEGIN
     -- return multiple results sets
     SELECT UPPER(COALESCE(@@SERVERNAME, CAST(SERVERPROPERTY('ServerName') AS nvarchar(128)), '')) AS [server_name];
     -- server_permissions
-    SELECT * FROM #x_ServerPermissions;
+    SELECT * FROM #x_ServerPermissions ORDER BY [server_principal], [principal_type];
     -- server_role_membership
-    SELECT * FROM #x_ServerRoleMembership;
+    SELECT * FROM #x_ServerRoleMembership ORDER BY [member_name], [server_role];
     -- database_object_permissions
-    SELECT * FROM #x_DatabaseObjectPermissions;
+    SELECT * FROM #x_DatabaseObjectPermissions ORDER BY [database_name], [database_principal];
     -- users_and_schemas
-    SELECT * FROM #x_UsersAndSchemas;
+    SELECT * FROM #x_UsersAndSchemas ORDER BY [database_name], [database_principal];
     -- database_role_membership
-    SELECT * FROM #x_DatabaseRoleMembership;
+    SELECT * FROM #x_DatabaseRoleMembership ORDER BY [database_name], [member_name], [database_role];
     -- inherited_permissions
-    SELECT * FROM #x_InheritedPermissions;
+    SELECT * FROM #x_InheritedPermissions ORDER BY [database_name], [database_principal], [permissions_name], [object_name];
     -- ssisdb_permissions
-    SELECT * FROM #x_SsisdbPermissions;
+    SELECT * FROM #x_SsisdbPermissions ORDER BY [database_name], [database_principal], [object_type], [object_name], [permission_type];
     -- sql_agent_job_ownership
-    SELECT * FROM #x_SQLAgentJobOwnership;
+    SELECT * FROM #x_SQLAgentJobOwnership ORDER BY [job_name], [is_enabled], [owner_name];
     -- database_ownership
-    SELECT * FROM #x_DatabaseOwnership;
+    SELECT * FROM #x_DatabaseOwnership ORDER BY [database_name], [owner_name];
     -- when this report was run
     SELECT CURRENT_TIMESTAMP AS [current_timestamp];
 END
@@ -528,47 +531,47 @@ BEGIN
         UPPER(COALESCE(@@SERVERNAME, CAST(SERVERPROPERTY('ServerName') AS nvarchar(128)), '')) AS [server_name],
         -- server_permissions
         CONVERT(xml, (
-            SELECT * FROM #x_ServerPermissions
+            SELECT * FROM #x_ServerPermissions ORDER BY [server_principal], [principal_type]
             FOR XML PATH, ROOT('server_permissions'), ELEMENTS XSINIL
         ), 2),
         -- server_role_membership
         CONVERT(xml, (
-            SELECT * FROM #x_ServerRoleMembership
+            SELECT * FROM #x_ServerRoleMembership ORDER BY [member_name], [server_role]
             FOR XML PATH, ROOT('server_role_membership'), ELEMENTS XSINIL
         ), 2),
         -- database_object_permissions
         CONVERT(xml, (
-            SELECT * FROM #x_DatabaseObjectPermissions
+            SELECT * FROM #x_DatabaseObjectPermissions ORDER BY [database_name], [database_principal]
             FOR XML PATH, ROOT('database_object_permissions'), ELEMENTS XSINIL
         ), 2),
         -- users_and_schemas
         CONVERT(xml, (
-            SELECT * FROM #x_UsersAndSchemas
+            SELECT * FROM #x_UsersAndSchemas ORDER BY [database_name], [database_principal]
             FOR XML PATH, ROOT('users_and_schemas'), ELEMENTS XSINIL
         ), 2),
         -- database_role_membership
         CONVERT(xml, (
-            SELECT * FROM #x_DatabaseRoleMembership
+            SELECT * FROM #x_DatabaseRoleMembership ORDER BY [database_name], [member_name], [database_role]
             FOR XML PATH, ROOT('database_role_membership'), ELEMENTS XSINIL
         ), 2),
         -- inherited_permissions
         CONVERT(xml, (
-            SELECT * FROM #x_InheritedPermissions
+            SELECT * FROM #x_InheritedPermissions ORDER BY [database_name], [database_principal], [permissions_name], [object_name]
             FOR XML PATH, ROOT('inherited_permissions'), ELEMENTS XSINIL
         ), 2),
         -- ssisdb_permissions
         CONVERT(xml, (
-            SELECT * FROM #x_SsisdbPermissions
+            SELECT * FROM #x_SsisdbPermissions ORDER BY [database_name], [database_principal], [object_type], [object_name], [permission_type]
             FOR XML PATH, ROOT('ssisdb_permissions'), ELEMENTS XSINIL
         ), 2),
         -- sql_agent_job_ownership
         CONVERT(xml, (
-            SELECT * FROM #x_SQLAgentJobOwnership
+            SELECT * FROM #x_SQLAgentJobOwnership ORDER BY [job_name], [is_enabled], [owner_name]
             FOR XML PATH, ROOT('sql_agent_job_ownership'), ELEMENTS XSINIL
         ), 2),
         -- database_ownership
         CONVERT(xml, (
-            SELECT * FROM #x_DatabaseOwnership
+            SELECT * FROM #x_DatabaseOwnership ORDER BY [database_name], [owner_name]
             FOR XML PATH, ROOT('database_ownership'), ELEMENTS XSINIL
         ), 2),
         -- when this report was run
