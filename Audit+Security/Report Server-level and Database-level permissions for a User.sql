@@ -16,9 +16,14 @@ DECLARE @DatabaseName nvarchar(128) = NULL; -- limit scope to a single database 
 DECLARE @ExcludeSystemDatabases bit = 0;    -- if value is "1" exclude system databases; default is to include them
 DECLARE @XMLOutput bit = 0;                 -- output results as a XML structure; default is multiple result sets
 DECLARE @ExcludedAccounts TABLE ([name] nvarchar(128)); -- -- list of accounts to exclude from the final queries and results
+DECLARE @ExcludedDatabases TABLE ([database_id] int, [name] nvarchar(128)); -- -- list of databases to exclude
+DECLARE @SQLcmd nvarchar(4000);
 
 -- add account names that you want excluded here:
 INSERT INTO @ExcludedAccounts VALUES (NULL);
+
+-- add database names that you want excluded here:
+INSERT INTO @ExcludedDatabases VALUES (NULL, NULL);
 
 /* -------------------------------------------------- */
 -- get the name for the SA login (security practices recommend that this should be renamed)
@@ -32,15 +37,22 @@ VALUES
     ('##MS_PolicyEventProcessingLogin##'), ('##MS_PolicyTsqlExecutionLogin##'), ('##MS_AgentSigningCertificate##'),
     ('##MS_SSISServerCleanupJobLogin##'), ('##MS_SSISServerCleanupJobUser##'), ('MS_DataCollectorInternalUser'), 
     ('AllSchemaOwner'), ('ModuleSigner'),
-    ('dc_admin'), ('dc_operator'), ('dc_proxy'), ('mds_email_user'), ('MS_DataCollectorInternalUser'), ('PolicyAdministratorRole'), 
-    ('RSExecRole'), ('ServerGroupAdministratorRole'), ('SQLAgentOperatorRole'), ('SQLAgentReaderRole'), ('UtilityIMRWriter'),
-    ('dqs_administrator'), ('dqs_kb_editor'), ('MDS_ServiceAccounts');
+    ('dc_admin'), ('dc_operator'), ('dc_proxy'), ('mds_email_user'), ('MS_DataCollectorInternalUser'), 
+    ('DatabaseMailUser'), ('PolicyAdministratorRole'), 
+    ('SQLAgentOperatorRole'), ('SQLAgentReaderRole'), ('SQLAgentUserRole'), 
+    ('ServerGroupAdministratorRole'), ('ServerGroupReaderRole'), 
+    ('RSExecRole'), ('TargetServersRole'), 
+    ('UtilityCMRReader'), ('UtilityIMRReader'), ('UtilityIMRWriter'),
+    ('dqs_administrator'), ('dqs_kb_editor'), ('MDS_ServiceAccounts'),
+    ('ssis_admin'), ('ssis_logreader'), ('db_ssisadmin'), ('db_ssisltduser'), ('db_ssisoperator')
+    ;
 
 -- exclude Service Accounts
 IF (OBJECT_ID('sys.dm_server_services') IS NOT NULL)
 BEGIN
+    SET @SQLcmd = N'SELECT [service_account] FROM sys.dm_server_services'
     INSERT INTO @ExcludedAccounts 
-    EXEC sp_executesql N'SELECT [service_account] FROM sys.dm_server_services';
+    EXEC sp_executesql @SQLcmd;
 END
 
 CREATE TABLE #msver (
@@ -54,6 +66,32 @@ INSERT INTO #msver EXEC xp_msver;
 
 DECLARE @ProductVersion nvarchar(128);
 SET @ProductVersion = CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128));
+
+-- exclude inaccessibile databases
+-- exclude LOCAL databases in that are in SECONDARY role of an AG
+SET @SQLcmd = N'
+SELECT d.[database_id], d.[name]
+FROM sys.dm_hadr_database_replica_states hdrs
+    INNER JOIN sys.databases d ON hdrs.[database_id] = d.[database_id]
+WHERE hdrs.[is_local]=1
+';
+  -- SQL Server 2014 (12.x) and later
+ IF (@ProductVersion > '12.0')
+    SET @SQLcmd = @SQLcmd + N'AND hdrs.[is_primary_replica]=0'
+
+INSERT INTO @ExcludedDatabases
+EXEC sp_executesql @SQLcmd;
+
+-- exclude LOCAL databases in that are in SECONDARY role of Database Mirroring Configuration
+SET @SQLcmd = N'
+SELECT d.[database_id], d.[name]
+FROM sys.databases d
+    INNER JOIN sys.database_mirroring dm ON d.[database_id] = dm.[database_id]
+WHERE dm.[mirroring_guid] IS NOT NULL AND dm.[mirroring_role] <> 1
+';
+INSERT INTO @ExcludedDatabases
+EXEC sp_executesql @SQLcmd;
+
 
 -- 1. server permissions
 SELECT 
@@ -110,7 +148,6 @@ AND [lgn].[name] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NO
 
 --DECLARE @DatabaseName nvarchar(128);
 DECLARE @DatabaseList CURSOR;
-DECLARE @SQLcmd nvarchar(4000);
 
 CREATE TABLE #DatabasePermissions (
     [database_name] nvarchar(128),
@@ -148,18 +185,9 @@ SET @DatabaseList = CURSOR READ_ONLY FOR
     WHERE state = 0
     AND database_id > (CASE WHEN @ExcludeSystemDatabases = 0 THEN 0 ELSE 4 END)
     AND database_id = (CASE WHEN NULLIF(@DatabaseName, '') IS NOT NULL THEN DB_ID(@DatabaseName) ELSE database_id END)
-    -- exclude LOCAL databases in that are in SECONDARY role of an AG
+    -- exclude these databases
     AND [database_id] NOT IN (
-        SELECT [database_id] FROM sys.dm_hadr_database_replica_states
-        WHERE [is_local]=1 
-        AND [is_primary_replica]=0 -- SQL Server 2014 (12.x) and later.
-    )
-    -- exclude LOCAL databases in that are in SECONDARY role of Database Mirroring Configuration
-    AND [database_id] NOT IN (
-        SELECT sd.[database_id]
-        FROM sys.databases sd
-            INNER JOIN sys.database_mirroring dm ON sd.[database_id] = dm.[database_id]
-        WHERE dm.[mirroring_guid] IS NOT NULL AND dm.[mirroring_role] <> 1
+        SELECT [database_id] FROM @ExcludedDatabases WHERE [name] IS NOT NULL
     )
 OPEN @DatabaseList
 FETCH NEXT FROM @DatabaseList INTO @DatabaseName
@@ -408,8 +436,11 @@ SELECT *,
         ' TO ' + QUOTENAME(dp.[database_principal], '[') + ';' AS [revoke_command]
 INTO #x_InheritedPermissions
 FROM #DatabaseRolePermissions dp
-WHERE dp.[database_principal] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL)
-AND dp.[database_principal] IN (SELECT DISTINCT [database_role] FROM #x_DatabaseRoleMembership);
+WHERE dp.[database_principal] IN (
+    SELECT DISTINCT [database_role] FROM #x_DatabaseRoleMembership
+    EXCEPT
+    SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL
+);
 
 -- 6. get SSISDB permissions
 IF EXISTS(SELECT 1 FROM sys.databases WHERE [name] = 'SSISDB')
@@ -514,7 +545,7 @@ BEGIN
     -- database_role_membership
     SELECT * FROM #x_DatabaseRoleMembership ORDER BY [database_name], [member_name], [database_role];
     -- inherited_permissions
-    SELECT * FROM #x_InheritedPermissions ORDER BY [database_name], [database_principal], [permissions_name], [object_name];
+    SELECT * FROM #x_InheritedPermissions ORDER BY [database_name], [database_principal], [permission_name], [object_name];
     -- ssisdb_permissions
     SELECT * FROM #x_SsisdbPermissions ORDER BY [database_name], [database_principal], [object_type], [object_name], [permission_type];
     -- sql_agent_job_ownership
@@ -556,7 +587,7 @@ BEGIN
         ), 2),
         -- inherited_permissions
         CONVERT(xml, (
-            SELECT * FROM #x_InheritedPermissions ORDER BY [database_name], [database_principal], [permissions_name], [object_name]
+            SELECT * FROM #x_InheritedPermissions ORDER BY [database_name], [database_principal], [permission_name], [object_name]
             FOR XML PATH, ROOT('inherited_permissions'), ELEMENTS XSINIL
         ), 2),
         -- ssisdb_permissions
