@@ -15,7 +15,7 @@ $Instances = @(
     ,"localhost,14333"
 )
 
-Write-Host $("Export started at {0}" -f $(Get-Date -Format "yyyy=MM-dd HH:mm:ss"))
+Write-Host $("Export started at {0}" -f $(Get-Date -Format "yyyy-MM-dd HH:mm:ss"))
 Write-Host "Output file: $ExportFilePath"
 
 # remove any file with the same name
@@ -27,4 +27,4 @@ foreach ($Instance in $Instances) {
     Get-DbaUserPermission -SqlInstance $Instance | Export-Excel -Path $ExportFilePath -AutoSize -FreezeTopRow -BoldTopRow -WorksheetName $($Instance.replace("\", "$"))
 }
 
-Write-Host $("Export completed at {0}" -f $(Get-Date -Format "yyyy=MM-dd HH:mm:ss"))
+Write-Host $("Export completed at {0}" -f $(Get-Date -Format "yyyy-MM-dd HH:mm:ss"))
