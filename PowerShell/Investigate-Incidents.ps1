@@ -24,12 +24,14 @@ Get-Volume | Select-Object PSComputerName,HealthStatus,DriveType,DriveLetter,Fil
 $host.ui.RawUI.WindowTitle = "Running as $([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)"
 
 # Log all commands to a text file
-[string] $LogFolder = "C:\Users\Public\Documents\LOG"
+Set-Location -Path "C:\Users\Public\Documents"
+[string] $LogFolder = "$($(Get-Location).Path))\LOG"
 [string] $LogFileName = "PoSh_Transcript_$(Get-Date -Format 'yyyyMMdd')"
 [string] $LogFilePath = "$($LogFolder)\$($LogFileName).txt"
 Start-Transcript -Path $LogFilePath -Append -IncludeInvocationHeader -NoClobber
+Clear-Host
 # Stop logging using "Stop-Transcript"
 
 # List SQL Server servics
-Get-Service | Where-Object -Property "DispolyName" -Value "*SQL*" -Like
+Get-Service | Where-Object -Property "DispolyName" -Like -Value "*SQL*"
 

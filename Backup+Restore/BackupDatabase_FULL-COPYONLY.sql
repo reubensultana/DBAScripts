@@ -1,4 +1,4 @@
-/* Source: https://github.com/reubensultana/DBAScripts/blob/master/Backup+Restore/Backup_Database_FULL-COPYONLY.sql */
+/* Source: https://github.com/reubensultana/DBAScripts/blob/master/Backup+Restore/BackupDatabase_FULL-COPYONLY.sql */
 
 /* NOTE: This script should be run using SQLCMD mode */
 :ON ERROR EXIT

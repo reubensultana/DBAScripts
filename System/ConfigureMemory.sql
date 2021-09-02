@@ -1,4 +1,4 @@
-/* Source: https://github.com/reubensultana/DBAScripts/blob/master/System/Configure_Memory.sql */
+/* Source: https://github.com/reubensultana/DBAScripts/blob/master/System/ConfigureMemory.sql */
 
 USE [master]
 GO

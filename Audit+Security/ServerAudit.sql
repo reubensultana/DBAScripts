@@ -1,4 +1,4 @@
-/* Source: https://github.com/reubensultana/DBAScripts/blob/master/Audit+Security/Server_Audit.sql */
+/* Source: https://github.com/reubensultana/DBAScripts/blob/master/Audit+Security/ServerAudit.sql */
 
 USE [master]
 GO
@@ -13,7 +13,7 @@ NOTES:
 
 -- define Audit params
 DECLARE @OrganisationName nvarchar(50);	-- The Organisation Name which will be used to define the Audit name property. NOTE: All UPPERCASE and do not use spaces
-DECLARE @AuditFolder nvarchar(128);     -- The path of the audit log. The file name is generated based on the audit name and audit GUID.
+DECLARE @AuditFolder nvarchar(1000);    -- The path of the audit log. The file name is generated based on the audit name and audit GUID.
 DECLARE @AuditMaxSizeMB int;            -- The maximum size to which the audit file can grow. The max_size value must be an integer followed by MB, GB, TB, or UNLIMITED.
                                         -- The minimum size that you can specify for max_size is 2 MB and the maximum is 2,147,483,647 TB. When UNLIMITED is specified, the file grows until the disk is full.
                                         -- (0 also indicates UNLIMITED.) Specifying a value lower than 2 MB will raise the error MSG_MAXSIZE_TOO_SMALL. The default value is UNLIMITED.
@@ -25,7 +25,7 @@ SET @AuditMaxSizeMB = 5;
 SET @AuditMaxRolloverFileCount = 400;
 SET @AuditReserverDiskSpace = 0;
 
-DECLARE @SqlCmd nvarchar(4000);
+DECLARE @SqlCmd nvarchar(max);
 
 DECLARE @EngineEdition nvarchar(128);
 SET @EngineEdition = CAST(SERVERPROPERTY('Edition') AS nvarchar(128));
@@ -43,23 +43,23 @@ BEGIN
 END
 
 -- check Engine Edition
-IF  (@EngineEdition NOT LIKE 'Developer%') OR
-    (@EngineEdition NOT LIKE 'Enterprise%') OR
-    (@EngineEdition NOT LIKE 'Business Intelligence%') OR
-    (@EngineEdition NOT LIKE 'Standard%')
+IF  (@EngineEdition LIKE 'Developer%') OR
+    (@EngineEdition LIKE 'Enterprise%') OR
+    (@EngineEdition LIKE 'Business Intelligence%') OR
+    (@EngineEdition LIKE 'Standard%')
 BEGIN
 
     IF (@AuditMaxSizeMB < 2)
         SET @AuditMaxSizeMB = 5;
 
     SET @AuditFolder = (
-        SELECT SUBSTRING([physical_name], 1, CHARINDEX(@FolderSeparator + 'DATA' + @FolderSeparator + 'master.mdf', [physical_name])) + 'AUDIT'
+        SELECT SUBSTRING([physical_name], 1, CHARINDEX(@FolderSeparator + 'DATA' + @FolderSeparator + 'master.mdf', [physical_name])) + 'AUDIT\' + @OrganisationName + N'_STANDARD_AUDIT'
         FROM sys.master_files WHERE [database_id] = 1 AND [file_id] = 1
     );
 
     -- create the folder structure
     IF @HostPlatform = 'Windows'
-        EXEC dbo.xp_createfolder @AuditFolder;
+        EXEC dbo.xp_create_subdir @AuditFolder;
 
     -- create the Server Audit
     SET @OrganisationName = UPPER(REPLACE(@OrganisationName, ' ', ''));
@@ -97,13 +97,13 @@ AND ([database_name] <> N''tempdb'')
 --  The following filters out system-generated statements accessing SQL Server internal tables
 --  that are not directly visible to or accessible by user processes, but which do appear among 
 --  log records if not suppressed.
-AND    NOT ([Schema_Name] = ''sys'' AND [Object_Name] = ''syspalnames'')
-AND    NOT ([Schema_Name] = ''sys'' AND [Object_Name] = ''objects$'')
-AND    NOT ([Schema_Name] = ''sys'' AND [Object_Name] = ''syspalvalues'')
-AND    NOT ([Schema_Name] = ''sys'' AND [Object_Name] = ''configurations$'')
-AND    NOT ([Schema_Name] = ''sys'' AND [Object_Name] = ''system_columns$'')
-AND    NOT ([Schema_Name] = ''sys'' AND [Object_Name] = ''server_audits$'')
-AND    NOT ([Schema_Name] = ''sys'' AND [Object_Name] = ''parameters$'')
+AND NOT ([Schema_Name] = ''sys'' AND [Object_Name] = ''syspalnames'')
+AND NOT ([Schema_Name] = ''sys'' AND [Object_Name] = ''objects$'')
+AND NOT ([Schema_Name] = ''sys'' AND [Object_Name] = ''syspalvalues'')
+AND NOT ([Schema_Name] = ''sys'' AND [Object_Name] = ''configurations$'')
+AND NOT ([Schema_Name] = ''sys'' AND [Object_Name] = ''system_columns$'')
+AND NOT ([Schema_Name] = ''sys'' AND [Object_Name] = ''server_audits$'')
+AND NOT ([Schema_Name] = ''sys'' AND [Object_Name] = ''parameters$'')
 
 --  The following suppresses audit trail messages about the execution of statements within procedures 
 --  and functions.  This is done because it is generally not useful to trace internal operations 
@@ -299,9 +299,12 @@ SET @HostPlatform = (SELECT TOP(1) host_platform FROM sys.dm_os_host_info);
 DECLARE @FolderSeparator nchar(1); -- "\" or "/"
 SET @FolderSeparator = CASE @HostPlatform WHEN 'Windows' THEN N'\' WHEN 'Linux' THEN N'/' END;
 
+DECLARE @OrganisationName nvarchar(50);
 DECLARE @AuditFolder nvarchar(128);
+
+SET @OrganisationName = 'CONTOSO';
 SET @AuditFolder = (
-    SELECT SUBSTRING([physical_name], 1, CHARINDEX(@FolderSeparator + 'DATA' + @FolderSeparator + 'master.mdf', [physical_name])) + 'LOG' + @FolderSeparator + 'AUDIT'
+    SELECT SUBSTRING([physical_name], 1, CHARINDEX(@FolderSeparator + 'DATA' + @FolderSeparator + 'master.mdf', [physical_name])) + 'AUDIT' + @FolderSeparator + @OrganisationName + N'_STANDARD_AUDIT'
     FROM sys.master_files WHERE [database_id] = 1 AND [file_id] = 1
 );
 
@@ -328,5 +331,46 @@ AND [server_principal_name] LIKE 'CONTOSO\U[0-9][0-9][0-9][0-9]%'
 -- remove SSMS queries
 AND [action_id] NOT IN ('VSST', 'VW')
 ORDER BY [event_time] DESC, [sequence_number] ASC;
+GO
+*/
+
+/*
+USE [master]
+GO
+SET NOCOUNT ON;
+-- check if the OS is Windows or Linux
+DECLARE @HostPlatform nvarchar(256); -- Windows or Linux
+SET @HostPlatform = (SELECT TOP(1) host_platform FROM sys.dm_os_host_info);
+DECLARE @FolderSeparator nchar(1); -- "\" or "/"
+SET @FolderSeparator = CASE @HostPlatform WHEN 'Windows' THEN N'\' WHEN 'Linux' THEN N'/' END;
+
+DECLARE @OrganisationName nvarchar(50);
+DECLARE @SqlCmd nvarchar(max);
+DECLARE @AuditFolder nvarchar(128);
+
+SET @OrganisationName = 'CONTOSO';
+
+-- disable the Server AUdit
+SET @SqlCmd = N'USE [master];ALTER SERVER AUDIT [' + @OrganisationName + N'_STANDARD_AUDIT] WITH (STATE = OFF);';
+PRINT @SqlCmd;
+EXEC sp_executesql @SqlCmd;
+
+SET @AuditFolder = (
+    SELECT SUBSTRING([physical_name], 1, CHARINDEX(@FolderSeparator + 'DATA' + @FolderSeparator + 'master.mdf', [physical_name])) + 'AUDIT' + @FolderSeparator + @OrganisationName + N'_STANDARD_AUDIT'
+    FROM sys.master_files WHERE [database_id] = 1 AND [file_id] = 1
+);
+
+IF @HostPlatform = 'Windows'
+    EXEC dbo.xp_create_subdir @AuditFolder;
+
+-- modify the Server Audit property/properties
+SET @SqlCmd = N'USE [master]; ALTER SERVER AUDIT [' + @OrganisationName + N'_STANDARD_AUDIT] TO FILE ( FILEPATH = ''' + @AuditFolder + N''' );';
+PRINT @SqlCmd;
+EXEC sp_executesql @SqlCmd;
+
+-- enable the Server AUdit
+SET @SqlCmd = N'USE [master];ALTER SERVER AUDIT [' + @OrganisationName + N'_STANDARD_AUDIT] WITH (STATE = OFF);';
+PRINT @SqlCmd;
+EXEC sp_executesql @SqlCmd;
 GO
 */
