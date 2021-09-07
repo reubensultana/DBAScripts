@@ -1,4 +1,4 @@
-/* Source: https://github.com/reubensultana/DBAScripts/blob/master/System/InstanceDefaultLocations.sql */
+/* Source: https://github.com/reubensultana/DBAScripts/blob/master/System/GetInfo-InstanceDefaultLocations.sql */
 
 /* Get the Instance default Data, Log and Backup locations */
 USE [master]

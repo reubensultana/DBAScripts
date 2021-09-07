@@ -1,4 +1,4 @@
-# Source: https://github.com/reubensultana/DBAScripts/blob/master/Audit+Security/GetAccessToSQL.ps1
+# Source: https://github.com/reubensultana/DBAScripts/blob/master/Audit+Security/GetAccess-ToSQL.ps1
 
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process -Force;
 

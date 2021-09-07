@@ -1,3 +1,5 @@
+/* Source: https://github.com/reubensultana/DBAScripts/blob/master/SQLAgent/ExportTable-AgentJobSchedules.sql */
+
 USE [msdb]
 GO
 

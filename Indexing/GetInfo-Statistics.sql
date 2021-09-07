@@ -1,4 +1,4 @@
-/* Source: https://github.com/reubensultana/DBAScripts/blob/master/Indexing/StatisticsInfo.sql */
+/* Source: https://github.com/reubensultana/DBAScripts/blob/master/Indexing/GetInfo-Statistics.sql */
 
 /* NOTE: This script should be run using SQLCMD mode */
 :ON ERROR EXIT

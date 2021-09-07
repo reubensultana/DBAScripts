@@ -1,4 +1,4 @@
-/* Source: https://github.com/reubensultana/DBAScripts/blob/master/DatabaseMail/Configure_Database_Mail.sql */
+/* Source: https://github.com/reubensultana/DBAScripts/blob/master/DatabaseMail/Configure-DatabaseMail.sql */
 
 USE [master]
 GO

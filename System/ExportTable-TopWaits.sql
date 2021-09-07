@@ -1,4 +1,4 @@
-/* Source: https://github.com/reubensultana/DBAScripts/blob/master/System/TopWaits.sql */
+/* Source: https://github.com/reubensultana/DBAScripts/blob/master/System/ExportTable-TopWaits.sql */
 
 /* NOTE: This script should be run using SQLCMD mode */
 :ON ERROR EXIT

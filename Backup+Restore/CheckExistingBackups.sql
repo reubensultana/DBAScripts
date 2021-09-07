@@ -1,4 +1,4 @@
-/* Source: https://github.com/reubensultana/DBAScripts/blob/master/Backup+Restore/CheckDatabaseBackups.sql */
+/* Source: https://github.com/reubensultana/DBAScripts/blob/master/Backup+Restore/CheckExistingBackups.sql */
 
 USE [msdb]
 GO

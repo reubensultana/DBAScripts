@@ -1,9 +1,9 @@
-/* Source: https://github.com/reubensultana/DBAScripts/blob/master/Backup+Restore/BackupDatabase_FULL-COPYONLY.sql */
+/* Source: https://github.com/reubensultana/DBAScripts/blob/master/Backup+Restore/BackupDatabase-Simple.sql */
 
 /* NOTE: This script should be run using SQLCMD mode */
 :ON ERROR EXIT
 
-:SETVAR SQLServerInstance "localhost,1433"
+:SETVAR SQLServerInstance "localhost,14331"
 :SETVAR DatabaseName "Adventureworks"
 :SETVAR BackupLocation "D:\DatabaseBackups\"
 :SETVAR StatsValue "10"
@@ -20,7 +20,7 @@ DECLARE @BackupFileName nvarchar(1000) = @BackupLocation + @ServerName + '_' + @
 PRINT 'Backing up [' + @DatabaseName + '] to "' + @BackupFileName + '"';
 ----------
 BACKUP DATABASE @DatabaseName TO DISK=@BackupFileName
-WITH INIT, NOUNLOAD, COPY_ONBLY, COMPRESSION, CHECKSUM, STATS=$(StatsValue);
+WITH INIT, NOUNLOAD, COPY_ONLY, COMPRESSION, CHECKSUM, STATS=$(StatsValue);
 ----------
 RESTORE VERIFYONLY FROM DISK=@BackupFileName WITH CHECKSUM, STATS=$(StatsValue);
 GO

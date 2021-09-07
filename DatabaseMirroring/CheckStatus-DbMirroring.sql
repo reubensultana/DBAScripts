@@ -1,4 +1,4 @@
-/* Source: https://github.com/reubensultana/DBAScripts/blob/master/DatabaseMirroring/DatabaseMirroring_StatusCheck.sql */
+/* Source: https://github.com/reubensultana/DBAScripts/blob/master/DatabaseMirroring/CheckStatus-DbMirroring.sql */
 
 /* NOTE: This script should be run using SQLCMD mode */
 :ON ERROR EXIT

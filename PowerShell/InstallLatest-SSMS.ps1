@@ -1,4 +1,6 @@
-# How To Install SQL Server Management Studio 2018 (v18.3)
+# Source: https://github.com/reubensultana/DBAScripts/blob/master/PowerShell/InstallLatest-SSMS.ps1
+
+# How To Install the latest SQL Server Management Studio
 Import-Module BitsTransfer
 $url = "https://aka.ms/ssmsfullsetup"
 $output = "./SSMS-Setup-ENU.exe"

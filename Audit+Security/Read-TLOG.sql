@@ -1,4 +1,4 @@
-/* Source: https://github.com/reubensultana/DBAScripts/blob/master/Backup+Restore/Read_TransactionLog_Entries.sql */
+/* Source: https://github.com/reubensultana/DBAScripts/blob/master/Backup+Restore/Read-TLOG.sql */
 
 /* NOTE: This script should be run using SQLCMD mode */
 :ON ERROR EXIT

@@ -1,3 +1,5 @@
+/* Source: https://github.com/reubensultana/DBAScripts/blob/master/Backup+Restore/RestoreDatabase-FromBackup.sql */
+
 USE [master]
 GO
 
@@ -26,6 +28,28 @@ SET @StatsValue = 15;
 DECLARE @ProductVersion nvarchar(128);
 SET @ProductVersion = CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128));
 
+-- check for NULL values, and use defaults if necessary
+IF (@DataFileLocation IS NULL)
+    EXEC xp_instance_regread N'HKEY_LOCAL_MACHINE', N'SOFTWARE\Microsoft\MSSQLServer\MSSQLServer', N'DefaultData', @DataFileLocation OUTPUT;
+IF (@LogFileLocation IS NULL)
+    EXEC xp_instance_regread N'HKEY_LOCAL_MACHINE', N'SOFTWARE\Microsoft\MSSQLServer\MSSQLServer', N'DefaultLog', @LogFileLocation OUTPUT;
+
+-- yet another failsafe
+DECLARE @MasterData nvarchar(512);
+DECLARE @MasterLog nvarchar(512);
+
+EXEC xp_instance_regread N'HKEY_LOCAL_MACHINE', N'SOFTWARE\Microsoft\MSSQLServer\MSSQLServer\Parameters', N'SqlArg0', @MasterData OUTPUT;
+SET @MasterData = SUBSTRING(@MasterData, 3, 255);
+SET @MasterData = SUBSTRING(@MasterData, 1, LEN(@MasterData) - CHARINDEX('\', REVERSE(@MasterData)));
+
+EXEC xp_instance_regread N'HKEY_LOCAL_MACHINE', N'SOFTWARE\Microsoft\MSSQLServer\MSSQLServer\Parameters', N'SqlArg1', @MasterLog OUTPUT;
+SET @MasterLog = SUBSTRING(@MasterLog, 3, 255);
+SET @MasterLog = SUBSTRING(@MasterLog, 1, LEN(@MasterLog) - CHARINDEX('\', REVERSE(@MasterLog)));
+
+SET @DataFileLocation = COALESCE(@DataFileLocation, @MasterData);
+SET @LogFileLocation = COALESCE(@LogFileLocation, @MasterLog);
+
+-- here we go...
 CREATE TABLE #BackupFileList (
     LogicalName nvarchar(128), -- Logical name of the file.
     PhysicalName nvarchar(260), -- Physical or operating-system name of the file.

@@ -1,4 +1,4 @@
-/* Source: https://github.com/reubensultana/DBAScripts/blob/master/System/ServerPowerManagement.sql */
+/* Source: https://github.com/reubensultana/DBAScripts/blob/master/System/Get-Info-PowerManagement.sql */
 
 USE [master]
 GO

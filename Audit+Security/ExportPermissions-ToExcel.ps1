@@ -1,4 +1,4 @@
-# Source: https://github.com/reubensultana/DBAScripts/blob/master/Audit+Security/Export-Permissions-to-a-Report.ps1
+# Source: https://github.com/reubensultana/DBAScripts/blob/master/Audit+Security/ExportPermissions-ToExcel.ps1
 
 Import-Module dbatools,ImportExcel
 

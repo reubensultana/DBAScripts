@@ -25,7 +25,7 @@ AS
 -- Business Process:        N/A
 -- Purpose:                 Restore the latest backup of a database from the specified location
 -- Detailed Description:    Duplicate a database onto another DBMS - requires access to file sharing ports
--- Database:                db_dba - restores database specified in variable @DatabaseName
+-- Database:                DBAToolbox - restores database specified in variable @DatabaseName
 -- Dependent Objects:       database specified in variable @DatabaseName
 -- Called By:               SysAdmin
 
@@ -35,7 +35,7 @@ AS
 --------------------------------------------------------------------------------------
 --   1.0 |          | 11/05/2012     | Reuben Sultana        | First implementation (based on existing code)
 --   1.1 |          | 10/07/2015     | Reuben Sultana        | Added support for changes in RESTORE FILELISTONLY output
---   1.2 |          | 25/09/208      | Reuben Sultana        | Fixed bug failing to RESTORE FILELIST for versions > 2014
+--   1.2 |          | 25/09/2018     | Reuben Sultana        | Fixed bug failing to RESTORE FILELIST for versions > 2014
 --       |          |                |                       | 
 
 --
@@ -540,7 +540,7 @@ END
 GO
 
 /*
-EXEC db_dba.dbo.usp_restore_and_replace 
+EXEC DBAToolbox.dbo.usp_restore_and_replace 
     @DatabaseName = 'AdventureWorks',
     @RestorePath = 'D:\TEMP',
     @DataFileLocation = 'D:\MSSQL\MSSQL.1\MSSQL\DATA\',
