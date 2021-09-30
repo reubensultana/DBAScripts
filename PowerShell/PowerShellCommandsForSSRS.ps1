@@ -77,7 +77,7 @@ Remove-RsCatalogItem -Proxy $SSRSWebProxy -Path "/$SSRSFolder/performance_dashbo
 
 
 # deploy report items in an entire folder with Write-RsFolderContent
-Write-RsFolderContent -Proxy $SSRSWebProxy -Path "$LocalReportFolder\" -Destination "/$SSRSFolder" -Verbose
+Write-RsFolderContent -Proxy $SSRSWebProxy -Path "$LocalReportFolder\" -Destination "/$SSRSFolder" -Recurse -Overwrite -Verbose
 
 
 # list items in the new folder
