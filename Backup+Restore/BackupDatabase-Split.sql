@@ -7,8 +7,10 @@
 :SETVAR DatabaseName "Adventureworks"
 :SETVAR BackupLocation "D:\DatabaseBackups\"
 :SETVAR StatsValue "10"
--- IMPORTANT: set "BackupFiles" to a reasonable value - don't get smart with this.
+/* IMPORTANT: set "BackupFiles" to a reasonable value - don't get smart with this */
 :SETVAR BackupFiles "4"
+/* The "VerifyBackup" option will trigger the RESTORE VERIFYONLY command after the backup completes; valid values are 1 and 0 */
+:SETVAR VerifyBackup "1"
 :SETVAR DebugMode "1"
 
 :CONNECT $(SQLServerInstance)
@@ -20,8 +22,10 @@ DECLARE @ServerName nvarchar(128) = REPLACE(@@SERVERNAME, '\', '$');
 DECLARE @DatabaseName nvarchar(128) = '$(DatabaseName)';
 DECLARE @BackupFileName nvarchar(1000) = @BackupLocation + @ServerName + '_' + @DatabaseName + '_' + @DateSuffix + '.BAK';
 DECLARE @BackupFiles tinyint = $(BackupFiles);
+DECLARE @VerifyBackup bit = $(VerifyBackupe);
 DECLARE @DebugMode bit = $(DebugMode);
 DECLARE @SqlCmd nvarchar(max) = N'';
+EXEC xp_create_subdir @BackupLocation;
 ----------
 DECLARE @BackupFileNames nvarchar(max) = N'';
 IF (@BackupFiles > 40) SET @BackupFiles = 40; -- don't be ridiculous...
@@ -48,7 +52,7 @@ BEGIN
     SET @BackupFileNames = SUBSTRING(@BackupFileNames, 1, LEN(@BackupFileNames)-1);
 END
 ----------
-IF (@DebugMode = 0) PRINT 'Backing up [' + @DatabaseName + '] to "' + REPLACE(@BackupFileNames, 'DISK=', '') + '"';
+IF (@DebugMode = 0) PRINT 'Backing up [' + @DatabaseName + '] to ' + REPLACE(@BackupFileNames, 'DISK=', '') + '';
 ----------
 PRINT N'';
 ----------
@@ -57,18 +61,22 @@ SET @SqlCmd = N'BACKUP DATABASE ' + @DatabaseName + N' TO '
 -- append the backup file names/paths
 SET @SqlCmd = @SqlCmd + @BackupFileNames;
 -- append the footer
-SET @SqlCmd = @SqlCmd + CHAR(13) + CHAR(10) + N'WITH INIT, NOUNLOAD, COPY_ONLY, COMPRESSION, CHECKSUM, STATS=$(StatsValue);';
+SET @SqlCmd = @SqlCmd + CHAR(13) + CHAR(10) + N'WITH INIT, NOUNLOAD, COPY_ONLY, COMPRESSION, CHECKSUM, 
+    BUFFERCOUNT=900, BLOCKSIZE=65536, MAXTRANSFERSIZE=4194304, STATS=$(StatsValue);';
 IF (@DebugMode = 1) PRINT @SqlCmd;
 ELSE EXEC sp_executesql @SqlCmd;
 ----------
 PRINT N'';
 ----------
--- start with the restore header
-SET @SqlCmd = N'RESTORE VERIFYONLY FROM '
--- append the backup file names/paths
-SET @SqlCmd = @SqlCmd + @BackupFileNames;
--- append the footer
-SET @SqlCmd = @SqlCmd + CHAR(13) + CHAR(10) + N'WITH CHECKSUM, STATS=$(StatsValue);'
-IF (@DebugMode = 1) PRINT @SqlCmd;
-ELSE EXEC sp_executesql @SqlCmd;
+IF (@VerifyBackup = 1)
+BEGIN
+    -- start with the restore header
+    SET @SqlCmd = N'RESTORE VERIFYONLY FROM '
+    -- append the backup file names/paths
+    SET @SqlCmd = @SqlCmd + @BackupFileNames;
+    -- append the footer
+    SET @SqlCmd = @SqlCmd + CHAR(13) + CHAR(10) + N'WITH CHECKSUM, STATS=$(StatsValue);'
+    IF (@DebugMode = 1) PRINT @SqlCmd;
+    ELSE EXEC sp_executesql @SqlCmd;
+END
 GO

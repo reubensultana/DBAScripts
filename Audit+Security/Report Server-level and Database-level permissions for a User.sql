@@ -528,6 +528,27 @@ FROM sys.databases d
 WHERE sp.[name] NOT IN (SELECT [name] FROM @ExcludedAccounts WHERE [name] IS NOT NULL)
 AND sp.[name] LIKE '' + COALESCE(@UserName, '%') + '';
 
+-- 9. get endpoint ownership
+SELECT 
+    ep.[name] AS [endpoint_name],
+    sp.[name] AS [owner_name],
+    'ALTER AUTHORIZATION ON ENDPOINT::' + QUOTENAME(d.[name], '[') + ' TO [' + @SALogin + '];' AS [change_ownership_command]
+INTO #x_EndpointOwnership
+FROM sys.endpoints ep
+    INNER JOIN sys.server_principals sp ON ep.[principal_id] = sp.[principal_id]
+WHERE principal_id > 1;
+
+-- 10. get ag ownership
+SELECT
+    ag.[name] AS [availability_group_name],
+    sp.[name] AS [owner_name],
+    'ALTER AUTHORIZATION ON AVAILABILITY GROUP::' + QUOTENAME(ag.[name], '[') + ' TO [' + @SALogin + '];' AS [change_ownership_command]
+INTO #x_AvailabilityGroupOwnership
+FROM sys.availability_groups ag
+    INNER JOIN sys.availability_replicas ar ON ag.[group_id] = ar.[group_id]
+    INNER JOIN sys.server_principals sp ON ar.[owner_sid] = sp.[sid]
+WHERE ar.[replica_server_name] = @@SERVERNAME
+AND ar.[owner_sid] <> 0x01;
 
 -- return data collected
 IF (@XMLOutput = 0)
@@ -552,6 +573,10 @@ BEGIN
     SELECT * FROM #x_SQLAgentJobOwnership ORDER BY [job_name], [is_enabled], [owner_name];
     -- database_ownership
     SELECT * FROM #x_DatabaseOwnership ORDER BY [database_name], [owner_name];
+    -- endpoint_ownership
+    SELECT * FROM #x_EndpointOwnership ORDER BY [endpoint_name], [owner_name]
+    -- ag_ownership
+    SELECT * FROM #x_AvailabilityGroupOwnership ORDER BY [availability_group_name], [owner_name]
     -- when this report was run
     SELECT CURRENT_TIMESTAMP AS [current_timestamp];
 END
@@ -605,6 +630,16 @@ BEGIN
             SELECT * FROM #x_DatabaseOwnership ORDER BY [database_name], [owner_name]
             FOR XML PATH, ROOT('database_ownership'), ELEMENTS XSINIL
         ), 2),
+        -- endpoint_ownership
+        CONVERT(xml, (
+            SELECT * FROM #x_EndpointOwnership ORDER BY [endpoint_name], [owner_name]
+            FOR XML PATH, ROOT('endpoint_ownership'), ELEMENTS XSINIL
+        ), 2),
+        -- ag_ownership
+        CONVERT(xml, (
+            SELECT * FROM #x_AvailabilityGroupOwnership ORDER BY [availability_group_name], [owner_name]
+            FOR XML PATH, ROOT('ag_ownership'), ELEMENTS XSINIL
+        ), 2),
         -- when this report was run
         CURRENT_TIMESTAMP AS [current_timestamp]
 
@@ -612,15 +647,17 @@ BEGIN
 END
 
 -- clean up
-DROP TABLE #x_ServerPermissions
-DROP TABLE #x_ServerRoleMembership
-DROP TABLE #x_DatabaseObjectPermissions
-DROP TABLE #x_UsersAndSchemas
-DROP TABLE #x_DatabaseRoleMembership
-DROP TABLE #x_InheritedPermissions
-DROP TABLE #x_SsisdbPermissions
-DROP TABLE #x_SQLAgentJobOwnership
-DROP TABLE #x_DatabaseOwnership
+DROP TABLE #x_ServerPermissions;
+DROP TABLE #x_ServerRoleMembership;
+DROP TABLE #x_DatabaseObjectPermissions;
+DROP TABLE #x_UsersAndSchemas;
+DROP TABLE #x_DatabaseRoleMembership;
+DROP TABLE #x_InheritedPermissions;
+DROP TABLE #x_SsisdbPermissions;
+DROP TABLE #x_SQLAgentJobOwnership;
+DROP TABLE #x_DatabaseOwnership;
+DROP TABLE #x_EndpointOwnership;
+DROP TABLE #x_AvailabilityGroupOwnership;
 
 DROP TABLE #DatabasePermissions;
 DROP TABLE #DatabaseRoleMembership;

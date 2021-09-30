@@ -16,11 +16,13 @@ DECLARE @DateSuffix nvarchar(19) = REPLACE(REPLACE(REPLACE(CONVERT(varchar(19), 
 DECLARE @ServerName nvarchar(128) = REPLACE(@@SERVERNAME, '\', '$');
 DECLARE @DatabaseName nvarchar(128) = '$(DatabaseName)';
 DECLARE @BackupFileName nvarchar(1000) = @BackupLocation + @ServerName + '_' + @DatabaseName + '_' + @DateSuffix + '.BAK';
+EXEC xp_create_subdir @BackupLocation;
 ----------
 PRINT 'Backing up [' + @DatabaseName + '] to "' + @BackupFileName + '"';
 ----------
 BACKUP DATABASE @DatabaseName TO DISK=@BackupFileName
-WITH INIT, NOUNLOAD, COPY_ONLY, COMPRESSION, CHECKSUM, STATS=$(StatsValue);
+WITH INIT, NOUNLOAD, COPY_ONLY, COMPRESSION, CHECKSUM, 
+    BUFFERCOUNT=900, BLOCKSIZE=65536, MAXTRANSFERSIZE=4194304, STATS=$(StatsValue);
 ----------
 RESTORE VERIFYONLY FROM DISK=@BackupFileName WITH CHECKSUM, STATS=$(StatsValue);
 GO

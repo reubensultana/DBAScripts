@@ -53,7 +53,7 @@ BEGIN
         SET @AuditMaxSizeMB = 5;
 
     SET @AuditFolder = (
-        SELECT SUBSTRING([physical_name], 1, CHARINDEX(@FolderSeparator + 'DATA' + @FolderSeparator + 'master.mdf', [physical_name])) + 'AUDIT\' + @OrganisationName + N'_STANDARD_AUDIT'
+        SELECT SUBSTRING([physical_name], 1, CHARINDEX(@FolderSeparator + 'DATA' + @FolderSeparator + 'master.mdf', [physical_name])) + 'AUDIT' + @FolderSeparator + @OrganisationName + N'_STANDARD_AUDIT'
         FROM sys.master_files WHERE [database_id] = 1 AND [file_id] = 1
     );
 
