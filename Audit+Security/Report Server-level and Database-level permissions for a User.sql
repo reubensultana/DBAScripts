@@ -532,11 +532,11 @@ AND sp.[name] LIKE '' + COALESCE(@UserName, '%') + '';
 SELECT 
     ep.[name] AS [endpoint_name],
     sp.[name] AS [owner_name],
-    'ALTER AUTHORIZATION ON ENDPOINT::' + QUOTENAME(d.[name], '[') + ' TO [' + @SALogin + '];' AS [change_ownership_command]
+    'ALTER AUTHORIZATION ON ENDPOINT::' + QUOTENAME(ep.[name], '[') + ' TO [' + @SALogin + '];' AS [change_ownership_command]
 INTO #x_EndpointOwnership
 FROM sys.endpoints ep
     INNER JOIN sys.server_principals sp ON ep.[principal_id] = sp.[principal_id]
-WHERE principal_id > 1;
+WHERE sp.[principal_id] > 1;
 
 -- 10. get ag ownership
 SELECT
