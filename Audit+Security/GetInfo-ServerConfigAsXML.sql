@@ -1,3 +1,5 @@
+/* Source: https://github.com/reubensultana/DBAScripts/blob/master/Audit+Security/GetInfo-ServerConfigAsXML.sql */
+
 USE [master]
 GO
 
@@ -49,6 +51,14 @@ SELECT
     (SELECT Internal_Value FROM @SQLVer WHERE Name = N'PhysicalMemory') AS [total_memory_mb],
     CONVERT(datetime, SERVERPROPERTY('ResourceLastUpdateDateTime')) AS [resource_last_update_datetime], 
     -- NOTE: See "CAST and CONVERT (Transact-SQL)" document at https://docs.microsoft.com/en-us/sql/t-sql/functions/cast-and-convert-transact-sql#xml-styles
+    -- server_services
+--/*
+    CONVERT(xml, (
+        SELECT * FROM sys.dm_server_services
+        ORDER BY process_id ASC
+        FOR XML PATH, ROOT('server_services'), ELEMENTS XSINIL
+    ), 2),
+--*/
     -- endpoints
     CONVERT(xml, (
         SELECT DISTINCT endpoint_id, local_net_address, local_tcp_port

@@ -1,3 +1,5 @@
+/* Source: https://github.com/reubensultana/DBAScripts/blob/master/Audit+Security/GetInfo-AzureConfigAsXML.sql */
+
 SET NOCOUNT ON;
 
 SELECT 
