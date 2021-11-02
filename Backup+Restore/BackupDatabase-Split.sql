@@ -22,7 +22,7 @@ DECLARE @ServerName nvarchar(128) = REPLACE(@@SERVERNAME, '\', '$');
 DECLARE @DatabaseName nvarchar(128) = '$(DatabaseName)';
 DECLARE @BackupFileName nvarchar(1000) = @BackupLocation + @ServerName + '_' + @DatabaseName + '_' + @DateSuffix + '.BAK';
 DECLARE @BackupFiles tinyint = $(BackupFiles);
-DECLARE @VerifyBackup bit = $(VerifyBackupe);
+DECLARE @VerifyBackup bit = $(VerifyBackup);
 DECLARE @DebugMode bit = $(DebugMode);
 DECLARE @SqlCmd nvarchar(max) = N'';
 EXEC xp_create_subdir @BackupLocation;
@@ -57,7 +57,7 @@ IF (@DebugMode = 0) PRINT 'Backing up [' + @DatabaseName + '] to ' + REPLACE(@Ba
 PRINT N'';
 ----------
 -- start with the backup header
-SET @SqlCmd = N'BACKUP DATABASE ' + @DatabaseName + N' TO '
+SET @SqlCmd = N'BACKUP DATABASE [' + @DatabaseName + N'] TO '
 -- append the backup file names/paths
 SET @SqlCmd = @SqlCmd + @BackupFileNames;
 -- append the footer
