@@ -5,6 +5,7 @@
 
 :SETVAR SQLServerInstance "localhost,1433"
 :SETVAR DatabaseName "Adventureworks"
+:SETVAR ObjectName = ""
 
 :CONNECT $(SQLServerInstance)
 USE [$(DatabaseName)]
@@ -42,6 +43,7 @@ declare @DatabaseName sysname,          -- Name of the database containing the a
         @StatsName sysname;             -- name of the statistics object for an index
 
 SET @dbid = DB_ID(DB_NAME())
+SET @ObjectID = OBJECT_ID('$(ObjectName)')
 
 CREATE TABLE #FragmentationInfo (
     [DatabaseID]            smallint,
@@ -90,7 +92,7 @@ INSERT INTO #FragmentationInfo
         NULL,                   -- RowsSampled
         NULL,                   -- RowModifications
         NULL                    -- SamplePercent
-    FROM sys.dm_db_index_physical_stats(@dbid, NULL, NULL, NULL, 'LIMITED') s
+    FROM sys.dm_db_index_physical_stats(@dbid, @ObjectID, NULL, NULL, 'LIMITED') s
         INNER JOIN sys.databases d ON s.database_id = d.database_id
     WHERE d.database_id > 4 -- exclude master, tempdb, model, msdb
     AND ISNULL(DATABASEPROPERTY(d.[name], 'IsReadOnly'), 0) = 0
