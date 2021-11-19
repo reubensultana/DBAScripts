@@ -5,7 +5,7 @@
 
 :SETVAR SQLServerInstance "localhost,1433"
 :SETVAR DatabaseName "Adventureworks"
-:SETVAR ObjectName = ""
+:SETVAR ObjectName ""
 
 :CONNECT $(SQLServerInstance)
 USE [$(DatabaseName)]
