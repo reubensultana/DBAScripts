@@ -125,13 +125,15 @@ choco install chocolatey -y
 #--- Windows Subsystems/Features ---
 choco install Microsoft-Hyper-V-All -source windowsFeatures
 choco install Microsoft-Windows-Subsystem-Linux -source windowsfeatures
+# packages from https://community.chocolatey.org/packages
 # security
 # choco install malwarebytes -y
 choco install keepass -y
+choco install lastpass -y
 # basics
 choco install javaruntime -y
-choco install googlechrome -y
-choco install googledrive -y
+# choco install googlechrome -y # download and install from Google
+# choco install googledrive -y # download and install from Google
 choco install 7zip.install -y
 choco install notepadplusplus.install -y
 choco install foxitreader -y
@@ -139,35 +141,78 @@ choco install wps-office-free -y
 # social
 choco install skype -y
 choco install zoom -y
+choco install zoom-client -y
+choco install microsoft-teams -y
+choco install microsoft-teams.install -y # Machine-Wide Install
+choco install webex-meetings -y
 # media
 choco install paint.net -y
 choco install audacity -y
 choco install k-litecodecpackfull -y
-choco install spotify -y
+# choco install spotify -y # or install through Microsoft Store
+choco install obs-studio -y
+choco install obs-virtualcam -y
+choco install shotcut -y
+choco install shotcut.install -y
+choco install virtualdub2 -y
+choco install vlc -y
 # dev
 choco install mremoteng -y
 choco install sql-server-management-studio -y
-choco install vscode -y
-choco install azure-data-studio -y
-choco install vscode-powershell -y
 choco install powershell-core -y
+choco install vscode -y
+choco install vscode.install -y
+# choco install vscode-powershell -y # or install as an extension below
 choco install vscode-settingssync -y
+choco install azure-data-studio -y
 choco install powerbi -y
-choco install sqlsentryplanexplorer -y
+# choco install sqlsentryplanexplorer -y # download and install from SentryOne
 choco install visualstudio2017sql -y
 choco install visualstudio2017community -y
 choco install visualstudio2019community -y
-choco install github-desktop -y
+# choco install github-desktop -y # download and install from GitHub
 choco install visualstudio-github -y
-choco install docker-desktop -y
-choco install docker-compose -y
-choco install docker-cli -y
+# choco install docker-desktop -y # download and install from Docker
+# choco install docker-compose -y # download and install from Docker
+# choco install docker-cli -y # download and install from Docker
+choco install azure-cli -y
+# choco install python -y
+# choco install terraform -y
+# choco install terraform-docs -y
+# choco install microsoftazurestorageexplorer -y
 choco install pencil -y
+choco install powertoys -y
+# vscode extensions
+$vscodeextensions = @(
+    "ms-vscode.powershell",
+    "ms-mssql.mssql",
+    "ms-mssql.sql-database-projects-vscode",
+    "ms-mssql.data-workspace-vscode",
+    "ms-azuretools.vscode-docker",
+    "ms-vscode-remote.remote-containers",
+    "taoklerks.poor-mans-t-sql-formatter-vscode",
+    "github.copilot",
+    "github.vscode-pull-request-github",
+    "eamodio.gitlens",
+    "yzhang.markdown-all-in-one",
+    "davidanson.vscode-markdownlint",
+    "streetsidesoftware.code-spell-checker"
+)
+[string] $Cmd = "C:\Program Files\Microsoft VS Code\bin\code.cmd"
+[string] $Arguments = ""
+foreach ($vscodeextension in $vscodeextensions) {
+    [string] $Arguments = "--install-extension " + $vscodeextension
+    Start-Process -FilePath $Cmd -ArgumentList $Arguments -Wait -NoNewWindow
+}
 # support
 choco install sysinternals -y
 choco install cpu-z -y
 choco install treesizefree -y
 choco install microsoft-windows-terminal -y
+choco install etcher -y
+# other
+choco install myfamilytree -y
+choco install myfamilytree-languagepack -y
 # --------------------------------------------------
 choco upgrade all -y
 # --------------------------------------------------
