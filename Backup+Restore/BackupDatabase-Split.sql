@@ -20,12 +20,13 @@ DECLARE @BackupLocation nvarchar(2000) = N'$(BackupLocation)';
 DECLARE @DateSuffix nvarchar(19) = REPLACE(REPLACE(REPLACE(CONVERT(varchar(19), CURRENT_TIMESTAMP, 121), '-', ''), ':', ''), ' ', '_');
 DECLARE @ServerName nvarchar(128) = REPLACE(@@SERVERNAME, '\', '$');
 DECLARE @DatabaseName nvarchar(128) = '$(DatabaseName)';
-DECLARE @BackupFileName nvarchar(1000) = @BackupLocation + @ServerName + '_' + @DatabaseName + '_' + @DateSuffix + '.BAK';
+DECLARE @BackupFileName nvarchar(1000) = (CASE WHEN @BackupLocation = 'NUL' THEN @BackupLocation ELSE (@BackupLocation + @ServerName + '_' + @DatabaseName + '_' + @DateSuffix + '.BAK') END);
 DECLARE @BackupFiles tinyint = $(BackupFiles);
 DECLARE @VerifyBackup bit = $(VerifyBackup);
 DECLARE @DebugMode bit = $(DebugMode);
 DECLARE @SqlCmd nvarchar(max) = N'';
-EXEC xp_create_subdir @BackupLocation;
+IF (@BackupLocation != 'NUL')
+    EXEC xp_create_subdir @BackupLocation;
 ----------
 DECLARE @BackupFileNames nvarchar(max) = N'';
 IF (@BackupFiles > 40) SET @BackupFiles = 40; -- don't be ridiculous...
@@ -68,7 +69,7 @@ ELSE EXEC sp_executesql @SqlCmd;
 ----------
 PRINT N'';
 ----------
-IF (@VerifyBackup = 1)
+IF (@VerifyBackup = 1) AND (@BackupLocation != 'NUL')
 BEGIN
     -- start with the restore header
     SET @SqlCmd = N'RESTORE VERIFYONLY FROM '
