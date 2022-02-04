@@ -46,19 +46,7 @@ GRANT SELECT ON [dbo].[sqlfirewall_allowlist] TO [public]
 GO
 
 
--- default data
-USE [master]
-GO
-SET NOCOUNT ON;
-INSERT INTO [dbo].[sqlfirewall_allowlist] ([al_loginname], [al_net_address])
-VALUES('SQLTest1', '<local machine>'),	-- allow local connections
-      ('SQLTest1', '127.0.0.1'),		-- allow local connections
-	  ('SQLTest1', '10.20.30.40'),	    -- allow connections from 10.20.30.40
-	  ('SQLTest1', '10.20.30.41');		-- allow connections from 10.20.30.41
--- NOTE: any other connections for 'SQLTest1' will be denied
-GO
-
-
+-- create and enable the trigger
 USE [master];
 GO
 IF EXISTS (SELECT * FROM sys.server_triggers WHERE [name] = N'sqlfirewall_allowlist_trigger')
@@ -85,11 +73,11 @@ BEGIN
             -- get IP address for the Client initiating the current connection
             --SET @SourceNetAddress = ( SELECT DISTINCT [client_net_address] FROM [sys].[dm_exec_connections] WHERE [session_id] = @@SPID);
             -- replaced by https://docs.microsoft.com/en-us/sql/relational-databases/triggers/capture-logon-trigger-event-data
-            SET @SourceNetAddress = ( SELECT EVENTDATA().value('(/EVENT_INSTANCE/ClientHost/CommandText)[1]','varchar(48)') )
+            SET @SourceNetAddress = COALESCE( ( SELECT EVENTDATA().value('(/EVENT_INSTANCE/ClientHost/CommandText)[1]','varchar(48)') ), HOST_NAME(), '');
             IF NOT EXISTS ( SELECT * FROM [dbo].[sqlfirewall_allowlist] WHERE [al_net_address] = @SourceNetAddress )
             BEGIN
                 -- log a message in the ERORLOG that the connection attempt was denied
-                SET @Message = 'Failed connection attempt for ' + @LoginName + ' from ' + COALESCE(@SourceNetAddress, HOST_NAME(), '');
+                SET @Message = 'Failed connection attempt for ' + @LoginName + ' from ' + @SourceNetAddress;
                 RAISERROR(@Message, 1, 1);
                 ROLLBACK;
             END
@@ -99,4 +87,17 @@ END;
 GO
 
 ENABLE TRIGGER [sqlfirewall_allowlist_trigger] ON ALL SERVER
+GO
+
+
+-- default data
+USE [master]
+GO
+SET NOCOUNT ON;
+INSERT INTO [dbo].[sqlfirewall_allowlist] ([al_loginname], [al_net_address])
+VALUES('SQLTest1', '<local machine>'),	-- allow local connections
+      ('SQLTest1', '127.0.0.1'),		-- allow local connections
+	  ('SQLTest1', '10.20.30.40'),	    -- allow connections from 10.20.30.40
+	  ('SQLTest1', '10.20.30.41');		-- allow connections from 10.20.30.41
+-- NOTE: any other connections for 'SQLTest1' will be denied
 GO
