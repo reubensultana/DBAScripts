@@ -73,7 +73,14 @@ BEGIN
             -- get IP address for the Client initiating the current connection
             --SET @SourceNetAddress = ( SELECT DISTINCT [client_net_address] FROM [sys].[dm_exec_connections] WHERE [session_id] = @@SPID);
             -- replaced by https://docs.microsoft.com/en-us/sql/relational-databases/triggers/capture-logon-trigger-event-data
-            SET @SourceNetAddress = COALESCE( ( SELECT EVENTDATA().value('(/EVENT_INSTANCE/ClientHost/CommandText)[1]','varchar(48)') ), HOST_NAME(), '');
+            --SET @SourceNetAddress = COALESCE( ( SELECT EVENTDATA().value('(/EVENT_INSTANCE/ClientHost/CommandText)[1]','varchar(48)') ), HOST_NAME(), '');
+            DECLARE @EventData XML;
+            SET @EventData = EVENTDATA();
+            SET @SourceNetAddress = COALESCE( ( SELECT @EventData.value('(/EVENT_INSTANCE/ClientHost/CommandText)[1]','varchar(48)') ), HOST_NAME(), '');
+            -- if above doesn't work, try this:
+            --SET @SourceNetAddress = COALESCE( ( SELECT @EventData.value('(/EVENT_INSTANCE/ClientHost)[1]','varchar(48)') ), HOST_NAME(), '');
+            -- then this to eliminate the XML variable:
+            --SET @SourceNetAddress = COALESCE( ( SELECT EVENTDATA().value('(/EVENT_INSTANCE/ClientHost)[1]','varchar(48)') ), HOST_NAME(), '');
             IF NOT EXISTS ( SELECT * FROM [dbo].[sqlfirewall_allowlist] WHERE [al_net_address] = @SourceNetAddress )
             BEGIN
                 -- log a message in the ERORLOG that the connection attempt was denied
