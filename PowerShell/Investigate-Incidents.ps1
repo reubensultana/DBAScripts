@@ -30,8 +30,14 @@ Set-Location -Path "C:\Users\Public\Documents"
 [string] $LogFilePath = "$($LogFolder)\$($LogFileName).txt"
 Start-Transcript -Path $LogFilePath -Append -IncludeInvocationHeader -NoClobber
 Clear-Host
-# Stop logging using "Stop-Transcript"
+# NOTE: Stop logging using "Stop-Transcript"
 
-# List SQL Server servics
+# List all SQL Server services
 Get-Service | Where-Object -Property "DispolyName" -Like -Value "*SQL*"
 
+# get the public IP address
+$(Invoke-WebRequest -uri "http://ifconfig.me/ip").Content
+
+# delete all files and folders in a directory
+# WARNINIG: make sure you know what you're doing!
+Get-Content -Path "C:\TEMP" - Resurce | Remove-Item -Recurse -Force

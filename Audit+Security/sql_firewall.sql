@@ -1,5 +1,6 @@
 /* Source: https://github.com/reubensultana/DBAScripts/blob/master/Audit+Security/sql_firewall.sql */
 
+/* ********** Tested with SQL Server 2012, 2014, 2016, 2017, 2019 ********** */
 USE [master]
 GO
 -- check and notify
@@ -73,14 +74,10 @@ BEGIN
             -- get IP address for the Client initiating the current connection
             --SET @SourceNetAddress = ( SELECT DISTINCT [client_net_address] FROM [sys].[dm_exec_connections] WHERE [session_id] = @@SPID);
             -- replaced by https://docs.microsoft.com/en-us/sql/relational-databases/triggers/capture-logon-trigger-event-data
-            --SET @SourceNetAddress = COALESCE( ( SELECT EVENTDATA().value('(/EVENT_INSTANCE/ClientHost/CommandText)[1]','varchar(48)') ), HOST_NAME(), '');
             DECLARE @EventData XML;
             SET @EventData = EVENTDATA();
-            SET @SourceNetAddress = COALESCE( ( SELECT @EventData.value('(/EVENT_INSTANCE/ClientHost/CommandText)[1]','varchar(48)') ), HOST_NAME(), '');
-            -- if above doesn't work, try this:
-            --SET @SourceNetAddress = COALESCE( ( SELECT @EventData.value('(/EVENT_INSTANCE/ClientHost)[1]','varchar(48)') ), HOST_NAME(), '');
-            -- then this to eliminate the XML variable:
-            --SET @SourceNetAddress = COALESCE( ( SELECT EVENTDATA().value('(/EVENT_INSTANCE/ClientHost)[1]','varchar(48)') ), HOST_NAME(), '');
+            --SET @SourceNetAddress = COALESCE( ( SELECT @EventData.value('(/EVENT_INSTANCE/ClientHost/CommandText)[1]','varchar(48)') ), HOST_NAME(), '');
+            SET @SourceNetAddress = ( SELECT @EventData.value('(/EVENT_INSTANCE/ClientHost/CommandText)[1]','varchar(48)') );
             IF NOT EXISTS ( SELECT * FROM [dbo].[sqlfirewall_allowlist] WHERE [al_net_address] = @SourceNetAddress )
             BEGIN
                 -- log a message in the ERORLOG that the connection attempt was denied
@@ -96,15 +93,52 @@ GO
 ENABLE TRIGGER [sqlfirewall_allowlist_trigger] ON ALL SERVER
 GO
 
+/*
+Test
+---------
+1. Open SSMS and create a SQL Login using the following:
+    
+    CREATE LOGIN [SQLFirewallTest] WITH PASSWORD = 'P@ssw0rd1!';
 
--- default data
+2. Open a PowerShell window and run the following:
+
+    # Install-Module dbatools -Force # if not installed
+    Import-Module dbatools
+    $SQLFirewallTest = GetCredential
+    # enter the credentials for the SQLFirewallTest login
+
+    Invoke-DBAQuery -SqlInstance "localhost,14331" -SqlCredential $SQLFirewallTest `
+        -SqlQuery "SELECT @@SERVERNAME AS [ServerName], ORIGINAL_LOGIN() AS [LoginName], HOST_NAME() AS [HostName], CURRENT_TIMESTAMP AS [CurrentTimestamp];"
+    # this should succeed
+
+3. In SSMS, create a rule for "SQLFirewallTest" to only allow connections from "10.20.30.40" (ficticious address)
+
+    USE [master]
+    GO
+    SET NOCOUNT ON;
+    INSERT INTO [dbo].[sqlfirewall_allowlist] ([al_loginname], [al_net_address])
+    VALUES('SQLFirewallTest', '10.20.30.40');
+    GO
+
+4. Back in the PowerShell window, test again.
+
+    Invoke-DBAQuery -SqlInstance "localhost,14331" -SqlCredential $SQLFirewallTest `
+        -SqlQuery "SELECT @@SERVERNAME AS [ServerName], ORIGINAL_LOGIN() AS [LoginName], HOST_NAME() AS [HostName], CURRENT_TIMESTAMP AS [CurrentTimestamp];"
+    # this should fail
+*/
+
+/*
+Clean Up
+---------
 USE [master]
 GO
-SET NOCOUNT ON;
-INSERT INTO [dbo].[sqlfirewall_allowlist] ([al_loginname], [al_net_address])
-VALUES('SQLTest1', '<local machine>'),	-- allow local connections
-      ('SQLTest1', '127.0.0.1'),		-- allow local connections
-	  ('SQLTest1', '10.20.30.40'),	    -- allow connections from 10.20.30.40
-	  ('SQLTest1', '10.20.30.41');		-- allow connections from 10.20.30.41
--- NOTE: any other connections for 'SQLTest1' will be denied
+DISABLE TRIGGER [sqlfirewall_allowlist_trigger] ON ALL SERVER
 GO
+DROP TRIGGER [sqlfirewall_allowlist_trigger] ON ALL SERVER
+GO
+DROP TABLE [dbo].[sqlfirewall_allowlist]
+GO
+-- NOTE: you might have to kill active/pooled connections
+DROP LOGIN [SQLFirewallTest]
+GO
+*/
