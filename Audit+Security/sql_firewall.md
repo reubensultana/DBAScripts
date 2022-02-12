@@ -2,7 +2,7 @@
 
 ## Requirements
 
-The idea of a SQL Firewall came to me a number of years ago, probably sometime around 2008, and however I have not given it much thought since.  It has come up a number of times in discussions with colleagues, managers, and clients however the discussions did not move further.
+The idea of a SQL Firewall came to me a number of years ago, probably sometime around 2008, however I have not given it much thought since.  It has come up a number of times in discussions with colleagues, managers, and clients however the discussions did not move further.
 
 The topic has recently come up again, and I was presented with an actual use-case, so I decided to delve into this further and gauge the feasibility.
 
@@ -26,10 +26,10 @@ On the other hand, an Allow List (AL) would be a simpler approach, requiring the
 
 As mentioned above, the AL Table contains the Long-Host mapping, hence when the Login Trigger fires the code would:
 
-1. check whether the Login exists in the Table
+1. Check whether the Login exists in the Table  
    Uses the [ORIGINAL_LOGIN()](https://docs.microsoft.com/en-us/sql/t-sql/functions/original-login-transact-sql) and [SYSTEM_USER](https://docs.microsoft.com/en-us/sql/t-sql/functions/system-user-transact-sql) functions
 
-2. check the source IP Address against the one stored
+2. Check the source IP Address against the one stored  
    Originally this was being extracted from the `client_net_address` column of the [sys.dm_exec_connections](https://docs.microsoft.com/en-us/sql/relational-databases/system-dynamic-management-views/sys-dm-exec-connections-transact-sql) Dynamic Management View. This however required the `VIEW SERVER STATE` permission, which might not be granted to all Logins due to security restrictions.
    An alternative, and quite possibly a better one because it does not require accessing a DMV, is [using the EVENTDATA() function](https://docs.microsoft.com/en-us/sql/relational-databases/triggers/capture-logon-trigger-event-data). In a nutshell, this returns an XML structure which would have to be "shred" in order to extract the "ClientHost" property value. The intermediate results of the `EVENTDATA()` function are being stored in a XML variable, then querying that variable for the "ClientHost" property.
 
@@ -41,15 +41,17 @@ If any of the rules need to be "disabled", we can simply delete the record from 
 
 ## Final Thoughts
 
+The solution works best with SQL Logins. When someone connects using a Windows Logins it is relatively easy to capture who initiated the connection. In the case os a SQL Login, which I personally advocate to avoid using unless there is no other technical solution, the credentials can be shared between multiple individuals and used from unauthorised machines. Of course if the User has been granted permissions to log on to an "allowed" Host, and uses the SQL Login to initiate the connection, there isn't much a DBA can do. If this scenario exists in your organisation, I would suggest reviewing your security policies.
+
 When a Login attempt fails, due to the above conditions being met, the End User will get the following error message:
 
 ```text
 Logon failed for login '<LOGIN_NAME>' due to trigger execution.
 ```
 
-This is a standard message and cannot be replace by a friendlier one, such as to inform the End User that they are not allowed to connect from that specific Workstation/Host for example.
+This is a standard message and cannot be replaced by a friendlier one, such as to inform the End User that they are not allowed to connect from that specific Workstation/Host for example.
 
-The Logon Trigger will however write the `RAISERROR` message to the SQL Server ERRORLOG, which can then be used for analysis and troubleshooting. A sample of the messgae is shown below:
+The Logon Trigger will however write the `RAISERROR` message to the SQL Server ERRORLOG, which can then be used for analysis and troubleshooting. A sample of the message is shown below:
 
 ``` text
 Failed connection attempt for <Login_Name> from <Host_Name>
@@ -59,6 +61,8 @@ Error: 17892, Severity: 20, State: 1.
 Logon failed for login '<Login_Name>' due to trigger execution. [CLIENT: <IP_Address>]
 ```
 
-The solution will not work with Active Directory Groups since the Group Name cannot be retrieved when a connection is attempted. Implementing such a feature would require additional permissions and would also incur increased performance overheads.
+The solution will not work with Active Directory Groups since the Group Name cannot be retrieved when a connection is attempted. Implementing such a feature would necessitate granting additional permissions, and would also incur increased performance overheads.
 
 Finally, it is highly recommended that the Login-Host mappings for every SQL Server instance are are stored in an alternate location - a source-control system might just do the trick, with the audit trail providing evidence should this be required.
+
+The code to implement this SQL Firewall has been tested with SQL Server 2012, 2014, 2016, 2017, and 2019, however you are urged to carry out your own testing (never trust code off the internet!).

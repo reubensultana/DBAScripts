@@ -11,7 +11,7 @@ BEGIN
 END
 
 CREATE TABLE [dbo].[sqlfirewall_allowlist] (
-	[al_pk] int IDENTITY(1,1) NOT NULL,
+	[al_pk] int IDENTITY(-2147483648,1) NOT NULL,
     [al_loginname] nvarchar(128) NOT NULL,
 	[al_net_address] varchar(48) NOT NULL,
     [al_date_created] datetime NOT NULL,
@@ -111,7 +111,7 @@ Test
         -SqlQuery "SELECT @@SERVERNAME AS [ServerName], ORIGINAL_LOGIN() AS [LoginName], HOST_NAME() AS [HostName], CURRENT_TIMESTAMP AS [CurrentTimestamp];"
     # this should succeed
 
-3. In SSMS, create a rule for "SQLFirewallTest" to only allow connections from "10.20.30.40" (ficticious address)
+3. In SSMS, create a rule for "SQLFirewallTest" to only allow connections from "10.20.30.40" (a ficticious address)
 
     USE [master]
     GO
