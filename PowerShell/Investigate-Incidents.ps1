@@ -4,7 +4,7 @@
 Enter-PSSession -ComputerName MyRemoteServer.contoso.com
 
 # Get the last 10 files, sorted by date in descending order; useful when reviewing log files
-Get-ChildItem | Sort-Object -Descending -Property LastWriteTime | Select-Object LastWriteTime,Name -First 10
+Get-ChildItem -File | Sort-Object -Descending -Property LastWriteTime | Select-Object LastWriteTime,Name -First 10
 
 # Output the contents of a file to the console
 Get-Content -Path "C:\TEMP\mylog.txt" -Raw
@@ -40,4 +40,14 @@ $(Invoke-WebRequest -uri "http://ifconfig.me/ip").Content
 
 # delete all files and folders in a directory
 # WARNINIG: make sure you know what you're doing!
-Get-Content -Path "C:\TEMP" - Resurce | Remove-Item -Recurse -Force
+Get-ChildItem -Path "C:\TEMP" -Recurse | Remove-Item -Recurse -Force
+
+# get file sizes in MB and GB
+Get-ChildItem -File | `
+    Select-Object Name, @{name='SizeMB';expr={[int]($_.Length/1MB)}}, @{name='SizeGB';expr={[int]($_.Length/1GB)}} | `
+    Format-Table -AutoSize
+
+# get firewall rules starting with a specific name
+[string] $RuleName = "MyCustomRule*"
+Get-NetFirewallRule | Where-Object -Property DisplayName -Like -Value $RuleName | Format-Table -AutoSize
+Get-FirewallRules | Where-Object -Property Desc -Like -Value $RuleName | Format-Table -AutoSize
