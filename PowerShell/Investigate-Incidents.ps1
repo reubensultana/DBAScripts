@@ -1,3 +1,5 @@
+# Source: https://github.com/reubensultana/DBAScripts/blob/master/PowerShell/Investigate-Incidents.ps1
+
 # General commands used to investigate Incidents
 
 # open a shell on the target server using PowerShell Remoting
