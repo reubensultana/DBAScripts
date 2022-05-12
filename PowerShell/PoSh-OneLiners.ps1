@@ -27,3 +27,13 @@ $Prefix = "IMG";
 [int] $i = $($(Get-ChildItem *.* | Where-Object -Property Name -Like "$Prefix*" | Sort-Object -Descending -Top 1).BaseName.Replace("$($Prefix)_", ""));
 if ($null -eq $i) { $i = 1 } else { $i += 1 };
 Get-ChildItem *.* | Where-Object -Property Name -NotLike "$Prefix*"  | ForEach-Object {Rename-Item $_ -NewName ('{0}_{1:D4}{2}' -f $Prefix, $i++, $($_.Extension))}
+
+# Change the Console Title
+$host.ui.RawUI.WindowTitle = "My PowerShell Session";
+
+# Change the prompt to show current folder without full path and greater than symbol at the end
+function prompt { "$( ( Get-Item $pwd ).Name )>" }
+# or:
+function prompt { "$( Split-Path -leaf -path (Get-Location) )>" }
+# or:
+function prompt { "$( ( Get-Location | Get-Item ).Name )>" }
