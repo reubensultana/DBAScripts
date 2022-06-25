@@ -53,3 +53,20 @@ Get-ChildItem -File | `
 [string] $RuleName = "MyCustomRule*"
 Get-NetFirewallRule | Where-Object -Property DisplayName -Like -Value $RuleName | Format-Table -AutoSize
 Get-FirewallRules | Where-Object -Property Desc -Like -Value $RuleName | Format-Table -AutoSize
+
+# run "telnet" multiple times, with a 2 second delay between retries, outputting the results in table format
+1..10 | ForEach-Object { Test-NetConnection -ComputerName 10.20.30.40 -Port 1433; Start-Sleep -Seconds 2 } | Format-Table -AutoSize
+
+# same as above, exporting to CSV
+1..10 | ForEach-Object { Test-NetConnection -ComputerName 10.20.30.40 -Port 1433; Start-Sleep -Seconds 2 } | Export-Csv -Path .\telnet.csv -Delimiter "," -NoTypeInformation -NoClobber
+
+# reclaim space used by Docker VHDX
+# first stop all services and applications
+net stop com.docker.service
+taskkill /IM "docker.exe" /F
+taskkill /IM "Docker Desktop.exe" /F
+wsl --shutdown
+
+# now reclaim inflated disk space
+Optimize-VHD -Path $Env:LOCALAPPDATA\Docker\wsl\data\ext4.vhdx -Mode Full
+
