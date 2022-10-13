@@ -89,11 +89,17 @@ UNION ALL SELECT N'UTC adjustment%'
 UNION ALL SELECT N'Unable to access availability database%'
 UNION ALL SELECT N'Using conventional memory in the memory manager%'
 UNION ALL SELECT N'Using locked pages in the memory manager%'
+UNION ALL SELECT N'Page exclusion bitmap is%'
+UNION ALL SELECT N'In-Memory OLTP initiated on lowend machine%'
+UNION ALL SELECT N'Audit: Server Audit: 65536, Initialised and Assigned State%'
+UNION ALL SELECT N'Parallel redo is started for database%'
+UNION ALL SELECT N'Parallel redo is shutdown for database%'
+UNION ALL SELECT N'A connection timeout has occurred while attempting to establish a connection to availability replica%'
 ;
 /* ********** END: VALUES TO EXCLUDE ********** */
 DECLARE @SQLcmd nvarchar(max) = N'';
 DECLARE @LogExclusions nvarchar(max) = N'';
-SELECT @LogExclusions = @LogExclusions + N'AND [Text] NOT LIKE N''' + [TextWildcard] + N''' ' /* <-- [note extra space] */ FROM #logexclusions;
+SELECT @LogExclusions = @LogExclusions + N'AND [Text] NOT LIKE N''' + [TextWildcard] + N''' ' /* <-- [note extra space] */ FROM #logexclusions ORDER BY [TextWildcard];
 --PRINT @SQLcmd;
 CREATE TABLE #readerrorlog ( [LogID] int IDENTITY(1,1), [LogDate] datetime, [ProcessInfo] varchar(10), [Text] nvarchar(4000) );
 INSERT INTO #readerrorlog EXEC sp_readerrorlog @FileNumber;
