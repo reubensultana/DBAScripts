@@ -1,7 +1,6 @@
 /* Source: https://github.com/reubensultana/DBAScripts/blob/master/Databases/GetCurrent-IdentityValue.sql */
 
-/* Get the latest IDENTIY value for all tables in the current database */
-
+/* Get the latest IDENTITY value for all tables in the current database */
 WITH cteColumns AS (
     SELECT OBJECT_SCHEMA_NAME(c.object_id) AS [SchemaName], OBJECT_NAME(c.object_id) AS [TableName]
     FROM sys.all_columns c
