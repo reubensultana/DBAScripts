@@ -29,7 +29,7 @@ if (Test-Path $ExportFilePath -PathType Leaf) { Remove-Item $ExportFilePath -For
 foreach ($Table in $TableList) {
     Write-Output "Exporting table $($Table)"
     Invoke-DbaQuery -SqlInstance $InstanceName -DatabaseName $DatabaseName -Query "SELECT * FROM $($Table)" -CommandType Text | `
-    Export-Excel -Path $ExportFilePath -AutoSize -FreezeTopRow -BoldTopRow -WorksheetName $($Table)
+        Export-Excel -Path $ExportFilePath -AutoSize -FreezeTopRow -BoldTopRow -WorksheetName $($Table)
 }
 
 Write-Output "Export completed at {0}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')

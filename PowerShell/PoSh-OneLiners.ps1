@@ -16,7 +16,7 @@ $cmd += ".exe"
 try { & $cmd $param | ForEach-Object { "{0:s}Z $($_.Trim())" -f $([System.DateTime]::UtcNow) } }
 catch { "{0:s}Z ERROR: $($_.Exception.Message)" -f $([System.DateTime]::UtcNow) }
 
-# Create a series of 12 folders
+# Create a series of 12 directories
 1..12 | ForEach-Object { mkdir $_.ToString().PadLeft(2, "0") }
 
 # Rename files using number values
@@ -37,3 +37,10 @@ function prompt { "$( ( Get-Item $pwd ).Name )>" }
 function prompt { "$( Split-Path -leaf -path (Get-Location) )>" }
 # or:
 function prompt { "$( ( Get-Location | Get-Item ).Name )>" }
+
+# unblock files meeting a specific criteria, e.g. ZIP files created since the 15th May 2023
+[string] $CreationTime = "2023-05-15"
+Get-ChildItem -Filter *.zip | Where-Object -Property CreationTime -ge -Value $CreationTime | Unblock-File
+
+# unzip files to the current directory (uses the same $CreationTime variable from above)
+Get-ChildItem -Filter *.zip | Where-Object -Property CreationTime -ge -Value $CreationTime | Expand-Archive -Destination ".\$($_.BaseName)" -Force -ErrorAction SilentlyContinue -Verbose

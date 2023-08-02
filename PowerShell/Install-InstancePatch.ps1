@@ -11,10 +11,10 @@ $ServerList = 'SQL01','SQL02','SQL03'
 $cred = Get-Credential DOMAIN\your.account
 
 # Set the version that you want to update to
-$version = '2017CU29'
+$version = '2017CU31'
 
 # Start Patching! The -Restart option will allow it to restart the SQL Server as needed
-Update-DbaInstance -ComputerName $ServerList -Path '\\network\share\path\SQLSERVER\2017\CU29\' -Credential $cred -Version $version -Restart
+Update-DbaInstance -ComputerName $ServerList -Path '\\network\share\path\SQLSERVER\2017\CU31\' -Credential $cred -Version $version -Restart
 <#
 NOTE
 ---------

@@ -12,7 +12,7 @@
 USE [master]
 GO
 DECLARE @BackupLocation nvarchar(2000) = N'$(BackupLocation)';
-DECLARE @DateSuffix nvarchar(19) = REPLACE(REPLACE(REPLACE(CONVERT(varchar(19), CURRENT_TIMESTAMP, 121, '-', ''), ':', ''), ' ', '_');
+DECLARE @DateSuffix nvarchar(19) = REPLACE(REPLACE(REPLACE(CONVERT(varchar(19), CURRENT_TIMESTAMP, 121), '-', ''), ':', ''), ' ', '_');
 DECLARE @ServerName nvarchar(128) = REPLACE(@@SERVERNAME, '\', '$');
 DECLARE @DatabaseName nvarchar(128) = '$(DatabaseName)';
 DECLARE @BackupFileName nvarchar(1000) = (CASE WHEN @BackupLocation = 'NUL' THEN @BackupLocation ELSE (@BackupLocation + @ServerName + '_' + @DatabaseName + '_' + @DateSuffix + '.BAK') END);
