@@ -15,6 +15,9 @@ if ($runningAsAdmin -eq $false) { Throw "You must be running this script as Admi
 
 [string] $LoginName = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name # Read-Host -Prompt 'Which login name requires access? '
 [string] $ServerInstance = $(Get-WmiObject Win32_Computersystem).Name;
+[string] $InstanceName = $(Get-Service "*SQL*" | Where-Object -Property Name -Like "MSSQL$*").ToString()
+$InstanceName = $InstanceName.Substring($InstanceName.IndexOf("$")+1)
+if ("MSSQLSERVER" -ne $InstanceName) { $ServerInstance = "$ServerInstance\$InstanceName" }
 
 [string] $ScheduledTaskName = "Add me to SQL Server sysadmins role";
 [bool] $HasAccess = $false;
