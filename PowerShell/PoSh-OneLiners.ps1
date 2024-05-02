@@ -44,3 +44,6 @@ Get-ChildItem -Filter *.zip | Where-Object -Property CreationTime -ge -Value $Cr
 
 # unzip files to the current directory (uses the same $CreationTime variable from above)
 Get-ChildItem -Filter *.zip | Where-Object -Property CreationTime -ge -Value $CreationTime | Expand-Archive -Destination ".\$($_.BaseName)" -Force -ErrorAction SilentlyContinue -Verbose
+
+# determine the date 28 days from today, and every 28 days thereafter for the next 6 months
+[datetime] $StartDate = Get-Date; [int] $i = 0; while ($i -lt 6) {$i+=1; $StartDate = $StartDate.AddDays(28); Write-Host $StartDate.ToShortDateString()}
