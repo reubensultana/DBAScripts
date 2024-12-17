@@ -46,4 +46,27 @@ Get-ChildItem -Filter *.zip | Where-Object -Property CreationTime -ge -Value $Cr
 Get-ChildItem -Filter *.zip | Where-Object -Property CreationTime -ge -Value $CreationTime | Expand-Archive -Destination ".\$($_.BaseName)" -Force -ErrorAction SilentlyContinue -Verbose
 
 # determine the date 28 days from today, and every 28 days thereafter for the next 6 months
-[datetime] $StartDate = Get-Date; [int] $i = 0; while ($i -lt 6) {$i+=1; $StartDate = $StartDate.AddDays(28); Write-Host $StartDate.ToShortDateString()}
+[int] $Increment = 28; [int] $Periods = 6; [datetime] $StartDate = Get-Date; [int] $i = 0; while ($i -lt $Periods) {$i+=1; $StartDate = $StartDate.AddDays($Increment); Write-Host $StartDate.ToShortDateString()}
+
+# get machine system locale (regional settings)
+Get-ComputerInfo | Select-Object -Property WindowsProductName,CsName,OsLocale,OsLocalDateTime,OsLanguage,TimeZone
+# or
+Get-WinSystemLocale
+
+# export the computer certificate
+$HostRdpCert = Get-ChildItem -Path Cert:\LocalMachine\My\ | `
+    Where-Object -Property Subject -Like -Value "*$($env:COMPUTERNAME)*" | `
+    Where-Object -Property EnhancedKeyUsageList -CLike -Value "Remote Desktop Authentication*"
+Export-Certificate -FilePath "$($env:USERPROFILE)\Documents\$($env:COMPUTERNAME).cer" -Cert $HostRdpCert -Type CERT -Verbose
+
+# download file
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+[string] $BaseUri = "https://github.com/Microsoft/sql-server-samples/releases/download/adventureworks/"
+[string] $FileName = "AdventureWorks2022.bak"
+[string] $TargetDir = "$($env:USERPROFILE)\Downloads"
+
+[string] $UriNamespace = ""
+$WebClient = New-Object System.Net.WebClient
+$WebClient.Headers['x-emc-namespace'] = $UriNamespace
+
+$WebClient.DownloadFile("$($BaseUri)\$($FileName)", "$($TargetDir)\$($FileName)")

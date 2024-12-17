@@ -35,14 +35,16 @@ Clear-Host
 # NOTE: Stop logging using "Stop-Transcript"
 
 # List all SQL Server services
-Get-Service | Where-Object -Property "DispolyName" -Like -Value "*SQL*"
+Get-Service | Where-Object -Property "DisplayName" -Like -Value "*SQL*" | Format-Table -AutoSize
+# or
+Get-Service "*SQL*" | Format-Table -AutoSize
 
 # get the public IP address
 $(Invoke-WebRequest -uri "http://ifconfig.me/ip").Content
 
 # delete all files and folders in a directory
 # WARNINIG: make sure you know what you're doing!
-Get-ChildItem -Path "C:\TEMP" -Recurse | Remove-Item -Recurse -Force
+Get-ChildItem -Path "C:\TEMP" -Recurse | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
 # get file sizes in MB and GB
 Get-ChildItem -File | `
@@ -70,3 +72,10 @@ wsl --shutdown
 # now reclaim inflated disk space
 Optimize-VHD -Path $Env:LOCALAPPDATA\Docker\wsl\data\ext4.vhdx -Mode Full
 
+# clean up all TEMP directories
+@(
+    "$($env:TEMP)"
+    "$($env:TMP)"
+    "$($env:windir)\Temp"
+    "$($env:localappdata)\Temp"
+) | ForEach-Object { Get-ChildItem -Path $_ -Recurse -ErrorAction SilentlyContinue | Remove-Item -Recurse -ErrorAction SilentlyContinue -Verbose }
