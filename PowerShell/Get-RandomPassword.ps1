@@ -13,7 +13,7 @@ function Get-RandomPassword {
         ,
         [Parameter(Position=4, Mandatory=$false)] [bool] $UseSymbols = $true
         ,
-        [Parameter(Position=5, Mandatory=$false)] [string] $OverrrideSymbols = $null
+        [Parameter(Position=5, Mandatory=$false)] [string] $OverrideSymbols = $null
     )
     
     # check and default to 12
@@ -25,13 +25,13 @@ function Get-RandomPassword {
         Return $null
     }
 
-    # arrays of alowed characters
+    # arrays of allowed characters
     if ($true -eq $UseUpper) { $UpperCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".ToCharArray() } else { $UpperCase = $null }
     if ($true -eq $UseLower) { $LowerCase = "abcdefghijklmnopqrstuvwxyz".ToCharArray() } else { $LowerCase = $null }
     if ($true -eq $UseNumbers) { $Numbers = "0123456789".ToCharArray() } else { $Numbers = $null }
     if ($true -eq $UseSymbols) {
-        if (($null -eq $OverrrideSymbols) -or ($OverrrideSymbols.Length -lt 1)) { $Symbols = "!@#$%^&*()-_=+{}[]|\:;<>,.?/".ToCharArray() }
-        else { $Symbols = $OverrrideSymbols.ToCharArray() }
+        if (($null -eq $OverrideSymbols) -or ($OverrideSymbols.Length -lt 1)) { $Symbols = "!@#$%^&*()-_=+{}[]|\:;<>,.?/".ToCharArray() }
+        else { $Symbols = $OverrideSymbols.ToCharArray() }
     } else { $Symbols = $null }
 
     # build a single array of all characters
