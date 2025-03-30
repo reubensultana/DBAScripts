@@ -1,4 +1,4 @@
-# Source: https://github.com/reubensultana/DBAScripts/blob/master/PowerShell/InstallLatest-SSMS.ps1
+# Source: https://github.com/reubensultana/DBAScripts/blob/master/PowerShell/Install-LatestSSMS.ps1
 
 # How To Install the latest SQL Server Management Studio
 Import-Module BitsTransfer

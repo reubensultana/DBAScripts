@@ -1,4 +1,4 @@
-# Source: https://github.com/reubensultana/DBAScripts/blob/master/PowerShell/ExportData-ToExcel.ps1
+# Source: https://github.com/reubensultana/DBAScripts/blob/master/PowerShell/Export-DataToExcel.ps1
 
 # export table/s to an Excel file (installation of Excel not required)
 Import-Module dbatools,ImportExcel

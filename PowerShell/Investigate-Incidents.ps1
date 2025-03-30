@@ -22,25 +22,10 @@ Get-WinEvent -FilterHashtable @{logname='System'; id=1074} -MaxEvents 5 -ErrorAc
 # Get volume size and space available
 Get-Volume | Select-Object PSComputerName,HealthStatus,DriveType,DriveLetter,FileSystem,FileSystemLabel, @{name='SizeMB';expr={[int]($_.Size/1MB)}},@{name='FreeMB';expr={[int]($_.SizeRemaining/1MB)}}, @{name='SizeGB';expr={[int]($_.Size/1GB)}},@{name='FreeGB';expr={[int]($_.SizeRemaining/1GB)}}, @{name='PercentFree';expr={[int](($_.SizeRemaining/$_.Size)*100)}} -Unique | Format-Table -AutoSize
 
-# Change the PowerShell console/window title
-$host.ui.RawUI.WindowTitle = "Running as $([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)"
-
-# Log all commands to a text file
-Set-Location -Path "C:\Users\Public\Documents"
-[string] $LogFolder = "$($(Get-Location).Path))\LOG"
-[string] $LogFileName = "PoSh_Transcript_$(Get-Date -Format 'yyyyMMdd')"
-[string] $LogFilePath = "$($LogFolder)\$($LogFileName).txt"
-Start-Transcript -Path $LogFilePath -Append -IncludeInvocationHeader -NoClobber
-Clear-Host
-# NOTE: Stop logging using "Stop-Transcript"
-
 # List all SQL Server services
 Get-Service | Where-Object -Property "DisplayName" -Like -Value "*SQL*" | Format-Table -AutoSize
 # or
 Get-Service "*SQL*" | Format-Table -AutoSize
-
-# get the public IP address
-$(Invoke-WebRequest -uri "http://ifconfig.me/ip").Content
 
 # delete all files and folders in a directory
 # WARNINIG: make sure you know what you're doing!
@@ -56,12 +41,6 @@ Get-ChildItem -File | `
 Get-NetFirewallRule | Where-Object -Property DisplayName -Like -Value $RuleName | Format-Table -AutoSize
 Get-FirewallRules | Where-Object -Property Desc -Like -Value $RuleName | Format-Table -AutoSize
 
-# run "telnet" multiple times, with a 2 second delay between retries, outputting the results in table format
-1..10 | ForEach-Object { Test-NetConnection -ComputerName 10.20.30.40 -Port 1433; Start-Sleep -Seconds 2 } | Format-Table -AutoSize
-
-# same as above, exporting to CSV
-1..10 | ForEach-Object { Test-NetConnection -ComputerName 10.20.30.40 -Port 1433; Start-Sleep -Seconds 2 } | Export-Csv -Path .\telnet.csv -Delimiter "," -NoTypeInformation -NoClobber
-
 # reclaim space used by Docker VHDX
 # first stop all services and applications
 net stop com.docker.service
@@ -71,11 +50,3 @@ wsl --shutdown
 
 # now reclaim inflated disk space
 Optimize-VHD -Path $Env:LOCALAPPDATA\Docker\wsl\data\ext4.vhdx -Mode Full
-
-# clean up all TEMP directories
-@(
-    "$($env:TEMP)"
-    "$($env:TMP)"
-    "$($env:windir)\Temp"
-    "$($env:localappdata)\Temp"
-) | ForEach-Object { Get-ChildItem -Path $_ -Recurse -ErrorAction SilentlyContinue | Remove-Item -Recurse -ErrorAction SilentlyContinue -Verbose }

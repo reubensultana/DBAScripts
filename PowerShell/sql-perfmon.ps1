@@ -1,3 +1,5 @@
+# Source: https://github.com/reubensultana/DBAScripts/blob/master/PowerShell/sql-perfmon.ps1
+
 <#
     .SYNOPSIS
     Collect counters required for SQL Server Performance Monitoring and log as CSV.

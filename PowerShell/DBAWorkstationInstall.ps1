@@ -1,3 +1,5 @@
+# Source: https://github.com/reubensultana/DBAScripts/blob/master/PowerShell/DBAWorkstationInstall.ps1
+
 # --------------------------------------------------
 # Using Powershell - administrator mode:
 Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))

@@ -1,3 +1,5 @@
+# Source: https://github.com/reubensultana/DBAScripts/blob/master/PowerShell/ConvertTo-SpokenWords.ps1
+
 Add-Type -AssemblyName System.Speech
 
 function ConvertTo-SpokenWords {

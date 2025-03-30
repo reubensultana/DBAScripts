@@ -1,3 +1,5 @@
+# Source: https://github.com/reubensultana/DBAScripts/blob/master/PowerShell/Export-BlobToFile.ps1
+
 ## Export of "larger" Sql Server Blob to file with GetBytes-Stream.
 # Configuration data
 param([String]$ServerName="localhost",          # SQL Server Instance.
