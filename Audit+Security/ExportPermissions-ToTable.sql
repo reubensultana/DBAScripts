@@ -95,7 +95,7 @@ ELSE
     -- exclude those who are already members of the "sysadmins" fixed server role
     AND IS_SRVROLEMEMBER('sysadmin', sp.[name]) = 0
     -- exclude Microsoft Built-In roles and accounts
-    AND sp.[name] NOT IN (SELECT PrincipalName FROM @DefaultPrincipals)
+    AND sp.[name] NOT IN (SELECT PrincipalName COLLATE DATABASE_DEFAULT FROM @DefaultPrincipals)
     -- exclude computer accounts
     AND sp.[name] NOT LIKE '%$'
     ORDER BY dp.[name] ASC
@@ -114,7 +114,7 @@ BEGIN
         INNER JOIN [$(TargetDatabaseName)].[sys].[database_principals] [u] ON [u].[principal_id] = [m].[member_principal_id]
         INNER JOIN [$(TargetDatabaseName)].[sys].[database_principals] [g] ON [g].[principal_id] = [m].[role_principal_id]
     -- exclude Microsoft Built-In roles and accounts
-    WHERE [u].[name] NOT IN (SELECT PrincipalName FROM @DefaultPrincipals)
+    WHERE [u].[name] NOT IN (SELECT PrincipalName COLLATE DATABASE_DEFAULT FROM @DefaultPrincipals)
     ORDER BY [u].[name], [g].[name];
 
     /* 2. Extra permissions */
@@ -133,7 +133,7 @@ BEGIN
         ON [obj].[object_id] = [sec].[major_id]
     WHERE [sec]. [class] IN (0, 1)
     -- exclude Microsoft Built-In roles and accounts
-    AND [prin].[name] NOT IN (SELECT PrincipalName FROM @DefaultPrincipals)
+    AND [prin].[name] NOT IN (SELECT PrincipalName COLLATE DATABASE_DEFAULT FROM @DefaultPrincipals)
     ORDER BY [sch].[name], [obj].[name], [obj].[type_desc], [prin].[name], [sec].[state_desc], [sec]. [permission_name];
 END
 

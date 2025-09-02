@@ -1,4 +1,4 @@
-/* Source: https://github.com/reubensultana/DBAScripts/blob/master/Audit+Security/MyEffectiveDatabasePermisisons.sql */
+/* Source: https://github.com/reubensultana/DBAScripts/blob/master/Audit+Security/MyEffectiveDatabasePermissions.sql */
 
 /* Retrieve Effective Database Permisisons */
 
